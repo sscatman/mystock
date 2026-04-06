@@ -25,11 +25,11 @@ import {
 } from 'lucide-react';
 
 /**
- * AI Hyper-Analyst GLOBAL V1.02 + Real-time Chart (Fixed for KR Stocks)
+ * AI Hyper-Analyst GLOBAL V1.02 + Real-time Chart (Initial Load Fixed)
  * 업데이트 내역:
- * 1. 한국 주식(KRX) 심볼 인식 및 ID 특수문자 오류 수정
- * 2. 차트 컨테이너 초기화 로직 추가로 종목 전환 안정성 확보
- * 3. KRX/US 시장 자동 판별 로직 고도화
+ * 1. 초기 로드 시 차트 표시 제외 (사용자 요청 반영)
+ * 2. 티커 입력 및 분석 실행 시에만 실시간 차트 렌더링
+ * 3. KRX/US 시장 자동 판별 및 컨테이너 초기화 로직 유지
  */
 
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
@@ -93,6 +93,8 @@ const TradingViewWidget = ({ symbol }) => {
   const container = useRef();
 
   useEffect(() => {
+    if (!symbol) return;
+
     const scriptId = 'tradingview-widget-script';
     let script = document.getElementById(scriptId);
     
@@ -148,8 +150,8 @@ const TradingViewWidget = ({ symbol }) => {
 };
 
 export default function App() {
-  const [ticker, setTicker] = useState('IONQ');
-  const [activeSymbol, setActiveSymbol] = useState('IONQ');
+  const [ticker, setTicker] = useState('');
+  const [activeSymbol, setActiveSymbol] = useState(null);
   const [term, setTerm] = useState('중기 (6개월~1년)');
   const [level, setLevel] = useState('5.시나리오');
   const [analysisItems, setAnalysisItems] = useState(availableItems);
@@ -209,7 +211,7 @@ export default function App() {
     if (!ticker.trim()) return;
     setIsGenerating(true);
     
-    // 차트 업데이트용 심볼 변환
+    // 차트 업데이트용 심볼 변환 (이 시점에 차트가 렌더링됨)
     const tvSymbol = getTradingViewSymbol(ticker);
     setActiveSymbol(tvSymbol);
 
@@ -494,21 +496,25 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
               </div>
             </div>
 
-            {/* TradingView Chart Section */}
-            <div className="animate-in fade-in zoom-in-95 duration-500">
-              <div className="flex items-center space-x-2 mb-4">
-                <Layout className="w-4 h-4 text-rose-500" />
-                <h2 className="text-sm font-black uppercase tracking-widest text-slate-300">Live Market Intelligence Chart</h2>
+            {/* TradingView Chart Section - Conditionally rendered */}
+            {activeSymbol && (
+              <div className="animate-in fade-in zoom-in-95 duration-500">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Layout className="w-4 h-4 text-rose-500" />
+                  <h2 className="text-sm font-black uppercase tracking-widest text-slate-300">Live Market Intelligence Chart</h2>
+                </div>
+                <TradingViewWidget symbol={activeSymbol} />
               </div>
-              <TradingViewWidget symbol={activeSymbol} />
-            </div>
+            )}
 
             {/* Prompt Output Section */}
             {!generatedPrompt && !isGenerating && (
               <div className="mt-16 flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
                 <FileSearch className="text-slate-500 w-16 h-16" />
                 <h3 className="text-xl lg:text-2xl font-black text-white uppercase tracking-tighter text-left">Market Sentiment Ready</h3>
-                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed text-left">차트 데이터를 확인하셨나요? 분석 지침서를 생성하여 월스트리트급 보고서를 완성하세요.</p>
+                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed text-left">
+                  {activeSymbol ? '차트 데이터를 확인하셨나요? 분석 지침서를 생성하여 월스트리트급 보고서를 완성하세요.' : '왼쪽 사이드바에서 티커를 입력하고 분석을 시작하세요.'}
+                </p>
               </div>
             )}
 
