@@ -19,14 +19,15 @@ import {
   ChevronDown,
   MousePointer2,
   FileText,
-  History
+  History,
+  Database // 누락된 Database 아이콘 추가
 } from 'lucide-react';
 
 /**
- * AI Hyper-Analyst GLOBAL V1.10 ULTRA-LIGHT
+ * AI Hyper-Analyst GLOBAL V1.10 ULTRA-LIGHT (FIXED)
  * 업데이트 내역:
- * 1. 제로 클릭 자동화: 종목명 입력 시 대표 코드를 자동 매칭하여 프롬프트 즉시 생성
- * 2. 클릭 단계 제거: 사용자가 추천 리스트를 누르지 않아도 시스템이 최적의 종목 선택
+ * 1. ReferenceError 수정: Database 아이콘 임포트 누락 해결
+ * 2. 제로 클릭 자동화: 종목명 입력 시 대표 코드를 자동 매칭하여 프롬프트 즉시 생성
  * 3. 무삭제 지침 엔진: 모든 분석 수식(Graham, DCF) 및 분량 제한(150단어) 지침 100% 보존
  * 4. LIGHT 레이아웃: 분석 결과 가독성을 극대화한 전면 분석 뷰 적용
  */
@@ -51,6 +52,7 @@ const availableItems = [
 
 export default function App() {
   const [ticker, setTicker] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [activeStockData, setActiveStockData] = useState(null);
   
@@ -98,7 +100,7 @@ export default function App() {
           setIsSearching(false);
         }
       }
-    }, 1000); // 1초간 입력이 없으면 자동 실행
+    }, 1000); 
 
     return () => clearTimeout(autoGenerate);
   }, [ticker]);
@@ -112,7 +114,6 @@ export default function App() {
     const isKOR = /^\d+$/.test(stockCode);
     const currencySym = isKOR ? "₩" : "$";
 
-    // --- 강력한 무삭제 프롬프트 템플릿 (V1.10 고정) ---
     const fullPrompt = `
 [역할] 월스트리트 수석 애널리스트
 [대상] ${stockName} (공식 기업명: ${stockName})
@@ -257,6 +258,17 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#0a0f1e] font-sans text-slate-200 overflow-hidden text-left">
       
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800 z-30">
+        <div className="flex items-center space-x-2">
+          <Globe className="text-rose-500 w-5 h-5" />
+          <span className="font-extrabold text-xs uppercase tracking-tighter text-left">Hyper Analyst Global V1.10</span>
+        </div>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 bg-slate-800 rounded-lg">
+          {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
+
       {/* Sidebar */}
       <div className={`fixed inset-0 lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out z-20 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-full lg:w-80 bg-[#161e31] border-r border-slate-800 flex flex-col h-full shadow-2xl`}>
         <div className="flex p-6 border-b border-slate-800 items-center space-x-3 bg-[#161e31]">
@@ -365,7 +377,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
               </div>
             ) : generatedPrompt ? (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-10">
-                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 flex items-start space-x-6 shadow-inner relative overflow-hidden">
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 flex items-start space-x-6 shadow-inner relative overflow-hidden text-left">
                   <div className="absolute top-0 right-0 p-4 opacity-5">
                     <CheckCircle className="w-24 h-24 text-emerald-500" />
                   </div>
@@ -384,7 +396,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                   <div className="absolute -inset-1 bg-gradient-to-br from-rose-500 to-indigo-600 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
                   <div className="relative bg-[#0d1326] border border-slate-800 rounded-[2rem] overflow-hidden shadow-2xl">
                     <div className="flex items-center justify-between px-8 py-6 border-b border-slate-800 bg-slate-900/50">
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3 text-left">
                         <div className="p-1.5 bg-rose-500/10 rounded-lg">
                           <FileText className="w-4 h-4 text-rose-500" />
                         </div>
@@ -398,7 +410,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                     <div className="p-8 lg:p-12 max-h-[65vh] overflow-y-auto custom-scrollbar font-mono text-[13px] lg:text-[15px] leading-[1.8] text-slate-300 whitespace-pre-wrap select-all bg-[#080d1a]/80 text-left selection:bg-rose-500/30">
                       {generatedPrompt}
                     </div>
-                    <div className="p-8 bg-[#0a1122] border-t border-slate-800">
+                    <div className="p-8 bg-[#0a1122] border-t border-slate-800 text-center">
                       <button onClick={() => { copyToClipboard(); window.open('https://gemini.google.com/app', '_blank'); }} className="w-full py-6 bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white rounded-2xl font-black text-sm lg:text-base shadow-[0_20px_40px_rgba(79,70,229,0.2)] flex justify-center items-center space-x-4 transition-all transform hover:scale-[1.01] active:scale-95">
                         <ExternalLink className="w-6 h-6" />
                         <span>복사 후 제미나이(Gemini)로 이동하여 분석 시작</span>
