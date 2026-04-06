@@ -16,22 +16,27 @@ import {
   ExternalLink,
   Menu,
   X,
-  FileSearch
+  FileSearch,
+  Globe
 } from 'lucide-react';
 
 /**
- * AI Hyper-Analyst KOR V0.5
+ * AI Hyper-Analyst GLOBAL V0.6
  * 업데이트 내역:
- * 1. 메인 타이틀 옆으로 버전 표시 이동 (Hyper Analyst KOR V0.5)
- * 2. 월가 수석 애널리스트급 초정밀 프롬프트 엔진 유지
- * 3. 모바일 대응 반응형 레이아웃 및 제미나이 호출 기능 포함
+ * 1. 미국 주식(미장) 지원: 영문 티커 입력 시 글로벌 모드 자동 전환
+ * 2. 시장 구분 로직: 한국(숫자 코드) vs 미국(영문 티커) 감지
+ * 3. 글로벌 프롬프트 엔진: 환율, 미국 증시 지수(나스닥/S&P500) 분석 지침 추가
+ * 4. UI 업그레이드: KOR -> GLOBAL 명칭 변경
  */
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
 
 const fetchRealStockData = async (ticker) => {
+  // 영문 티커(미국 주식)인 경우 한국 공공데이터 API 호출 스킵
+  const isKOR = /^\d+$/.test(ticker);
+  if (!isKOR) return null;
+
   try {
-    const isNumeric = /^\d+$/.test(ticker);
-    const queryParam = isNumeric ? `likeSrtnCd=${ticker}` : `itmsNm=${encodeURIComponent(ticker)}`;
+    const queryParam = `likeSrtnCd=${ticker}`;
     const url = `https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo?serviceKey=${publicDataApiKey}&resultType=json&${queryParam}&numOfRows=1`;
     
     const response = await fetch(url);
@@ -47,7 +52,8 @@ const fetchRealStockData = async (ticker) => {
       change: item.vs,
       changeRate: item.fltRt,
       volume: Number(item.trqu).toLocaleString(),
-      marketCap: Number(item.mrktTotAmt).toLocaleString()
+      marketCap: Number(item.mrktTotAmt).toLocaleString(),
+      currency: "KRW"
     };
   } catch (error) {
     return null;
@@ -71,7 +77,7 @@ const availableItems = [
 ];
 
 export default function App() {
-  const [ticker, setTicker] = useState('아이온큐');
+  const [ticker, setTicker] = useState('NVDA');
   const [term, setTerm] = useState('중기 (6개월~1년)');
   const [level, setLevel] = useState('5.시나리오');
   const [analysisItems, setAnalysisItems] = useState(availableItems);
@@ -121,32 +127,40 @@ export default function App() {
     setIsGenerating(true);
     if (window.innerWidth < 1024) setIsSidebarOpen(false);
 
-    const stockData = await fetchRealStockData(ticker);
+    const upperTicker = ticker.toUpperCase().trim();
+    const isKOR = /^\d+$/.test(upperTicker);
+    const stockData = await fetchRealStockData(upperTicker);
+    
+    const marketType = isKOR ? "한국 거래소(KRX)" : "미국 증시(NASDAQ/NYSE/AMEX)";
+    const currency = isKOR ? "KRW (₩)" : "USD ($)";
     
     const fullPrompt = `
-[역할] 월스트리트 수석 애널리스트 (한국 및 글로벌 증시 전문가)
-[대상] ${stockData ? stockData.name : ticker} (공식 기업명: ${stockData ? stockData.name : ticker})
+[역할] 월스트리트 수석 애널리스트 (글로벌 자산운용사 시니어 전략가)
+[시장 구분] ${marketType}
+[대상] ${stockData ? stockData.name : upperTicker} (심볼: ${upperTicker})
 [모드] MAIN (전문가용 심층 분석 모드)
 [중점 분석] ${analysisItems.join(', ')}
 [투자 관점] ${term}
 [분석 레벨] ${level}
+[통화 단위] ${currency}
 
-**주의: '${stockData ? stockData.name : ticker}'는 '${stockData ? stockData.name : ticker}'입니다. 다른 기업과 혼동하지 마십시오.**
-이 분석은 '${level.split('.')[1]}' 모드입니다. 미래 불확실성을 고려하여 확률적 접근이 필수적입니다.
+**주의: '${upperTicker}'는 ${marketType}의 기업입니다. 다른 국가의 기업과 혼동하지 마십시오.**
+${!isKOR ? "미국 시장 분석 시 나스닥(NASDAQ) 및 S&P 500 지수 추이, 원/달러 환율 영향력을 반드시 포함하십시오." : ""}
 
 [데이터 요약]
 ${stockData ? `
-- 현재 주가: ${stockData.price} 원
+- 현재 주가: ${stockData.price} ${stockData.currency}
 - 전일 대비: ${stockData.change} (${stockData.changeRate}%)
-- 거래량: ${stockData.volume} 주
-- 시가총액: ${stockData.marketCap} 원
-` : '- 실시간 시세 데이터 조회 실패: 검색 기능을 사용하여 최신 데이터를 반드시 반영하십시오.'}
+- 거래량: ${stockData.volume}
+- 시가총액: ${stockData.marketCap}
+` : `- 실시간 데이터 검색 필요: ${upperTicker}의 최신 주가, 거래량, 시가총액 정보를 실시간 검색하여 반영하십시오.`}
 
 [분석 지침]
 ⚠️ **[필수 준수 사항]** ⚠️
 1. **생략 금지**: 모든 분석 항목(${analysisItems.join(', ')})을 상세히 분석하십시오.
-2. **고품질 유지**: 각 항목별 최소 150단어 이상, 3-5개의 구체적 포인트 포함.
-3. **구조화**: ## 섹션 헤더 사용 및 Graham/DCF 가치 산출 표 필수 포함.
+2. **글로벌 스탠다드**: 미국 주식의 경우 Yahoo Finance, Bloomberg, Seeking Alpha 등의 글로벌 컨센서스를 인용하십시오.
+3. **고품질 유지**: 각 항목별 최소 150단어 이상, 구체적 데이터 기반 포인트 포함.
+4. **구조화**: ## 섹션 헤더 사용 및 Graham/DCF 가치 산출 표 필수 포함.
 
 ---
 (이하 생략 - 상세 분석 수행)
@@ -164,8 +178,8 @@ ${stockData ? `
       {/* Mobile Top Header */}
       <div className="lg:hidden flex items-center justify-between p-4 bg-slate-800 border-b border-slate-700 z-30">
         <div className="flex items-center space-x-2">
-          <TrendingUp className="text-rose-500 w-5 h-5" />
-          <span className="font-extrabold text-xs uppercase tracking-tighter">AI Analyst V0.5</span>
+          <Globe className="text-rose-500 w-5 h-5" />
+          <span className="font-extrabold text-xs uppercase tracking-tighter">AI Analyst Global V0.6</span>
         </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 bg-slate-700 rounded-lg">
           {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -179,12 +193,12 @@ ${stockData ? `
         w-full lg:w-80 bg-slate-800 border-r border-slate-700 flex flex-col h-full shadow-2xl
       `}>
         <div className="hidden lg:flex p-6 border-b border-slate-700 items-center space-x-3">
-          <div className="bg-rose-500/10 p-2.5 rounded-xl">
-            <TrendingUp className="text-rose-500 w-6 h-6" />
+          <div className="bg-indigo-500/10 p-2.5 rounded-xl">
+            <Globe className="text-indigo-400 w-6 h-6" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-lg font-black bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent italic">AI Analyst</h1>
-            <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase font-bold">Menu Interface</span>
+            <h1 className="text-lg font-black bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent italic leading-tight">Global Analyst</h1>
+            <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V0.6 GLOBAL</span>
           </div>
         </div>
         
@@ -217,7 +231,7 @@ ${stockData ? `
           <div className="space-y-4">
             <div className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-widest">
               <CheckCircle className="w-3.5 h-3.5 mr-2 text-rose-500" />
-              Middle Focus Items
+              Analysis Focus Items
             </div>
             <div className="space-y-1 max-h-52 overflow-y-auto pr-2 custom-scrollbar bg-slate-900/40 p-2 rounded-xl border border-slate-700/50">
               {availableItems.map((item, idx) => (
@@ -230,18 +244,18 @@ ${stockData ? `
           </div>
 
           <div className="space-y-3 pt-2">
-            <label className="text-xs font-bold text-slate-200 block uppercase tracking-tighter text-left">Ticker or Name</label>
+            <label className="text-xs font-bold text-slate-200 block uppercase tracking-tighter text-left">Symbol (AAPL, NVDA, 005930)</label>
             <div className="relative group">
               <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-500 group-focus-within:text-rose-500 transition-colors" />
-              <input type="text" value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="예: 아이온큐, NVDA" className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all placeholder-slate-600" onKeyDown={(e) => e.key === 'Enter' && handleGeneratePrompt()} />
+              <input type="text" value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="Symbol (예: NVDA, 005930)" className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all placeholder-slate-600" onKeyDown={(e) => e.key === 'Enter' && handleGeneratePrompt()} />
             </div>
           </div>
         </div>
 
         <div className="p-6 bg-slate-800/90 backdrop-blur-xl border-t border-slate-700">
-          <button onClick={handleGeneratePrompt} disabled={isGenerating} className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-2xl flex justify-center items-center space-x-2 transition-all active:scale-95 ${isGenerating ? 'bg-slate-700' : 'bg-gradient-to-br from-rose-500 to-rose-700 hover:shadow-rose-500/40'}`}>
+          <button onClick={handleGeneratePrompt} disabled={isGenerating} className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-2xl flex justify-center items-center space-x-2 transition-all active:scale-95 ${isGenerating ? 'bg-slate-700' : 'bg-gradient-to-br from-indigo-500 to-indigo-700 hover:shadow-indigo-500/40'}`}>
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
-            <span>{isGenerating ? 'Generating...' : 'Build Pro Prompt'}</span>
+            <span>{isGenerating ? 'Generating...' : 'Build Global Prompt'}</span>
           </button>
         </div>
       </div>
@@ -255,35 +269,35 @@ ${stockData ? `
           <div className="max-w-5xl mx-auto w-full">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 space-y-6 lg:space-y-0">
               <div className="flex items-start space-x-5">
-                <div className="bg-indigo-600/20 p-4 rounded-2xl border border-indigo-500/30 shadow-2xl shadow-indigo-500/10">
-                  <Cpu className="text-indigo-400 w-10 h-10" />
+                <div className="bg-rose-600/20 p-4 rounded-2xl border border-rose-500/30 shadow-2xl shadow-rose-500/10">
+                  <Globe className="text-rose-400 w-10 h-10" />
                 </div>
                 <div>
                   <h1 className="text-2xl lg:text-3xl font-black tracking-tighter text-white italic uppercase leading-none">
-                    Hyper Analyst <span className="text-rose-500 underline decoration-indigo-500 decoration-4 underline-offset-8">KOR</span>
-                    <span className="text-sm font-normal text-slate-500 ml-3 not-italic">V0.5</span>
+                    Hyper Analyst <span className="text-indigo-500 underline decoration-rose-500 decoration-4 underline-offset-8">GLOBAL</span>
+                    <span className="text-sm font-normal text-slate-500 ml-3 not-italic">V0.6</span>
                   </h1>
-                  <p className="text-slate-500 text-sm mt-3 font-medium">Wall-Street Grade Professional Prompt Engine</p>
+                  <p className="text-slate-500 text-sm mt-3 font-medium">KOR & GLOBAL Professional Prompt Engine</p>
                 </div>
               </div>
               <div className="hidden lg:flex items-center space-x-2 text-slate-600 bg-slate-800/40 px-3 py-1.5 rounded-full border border-slate-700/50">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-[10px] font-mono font-bold tracking-widest uppercase">System Operational</span>
+                <span className="text-[10px] font-mono font-bold tracking-widest uppercase">Global Terminal Active</span>
               </div>
             </div>
 
             {!generatedPrompt && !isGenerating && (
               <div className="mt-16 lg:mt-24 flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
                 <div className="relative">
-                  <div className="absolute -inset-4 bg-indigo-500/20 blur-3xl rounded-full"></div>
+                  <div className="absolute -inset-4 bg-rose-500/20 blur-3xl rounded-full"></div>
                   <div className="w-20 h-20 lg:w-24 lg:h-24 bg-slate-800/50 rounded-3xl flex items-center justify-center border border-slate-700 shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-500">
                     <FileSearch className="text-slate-400 w-10 h-10 lg:w-12 lg:h-12" />
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <h3 className="text-xl lg:text-2xl font-black text-white uppercase tracking-tighter">Ready to Execute Analysis</h3>
+                  <h3 className="text-xl lg:text-2xl font-black text-white uppercase tracking-tighter">Ready to Execute Global Analysis</h3>
                   <p className="text-slate-500 text-sm lg:text-base max-w-md mx-auto leading-relaxed">
-                    종목을 입력하고 하단의 버튼을 눌러주세요. 월가 수석 애널리스트의 분석 지침과 실시간 시세 데이터가 결합된 정교한 질문지를 생성합니다.
+                    티커(예: AAPL, NVDA) 또는 한국 종목코드를 입력하세요. 시장을 자동 감지하여 글로벌 전문가급 질문지를 생성합니다.
                   </p>
                 </div>
               </div>
@@ -292,41 +306,41 @@ ${stockData ? `
             {isGenerating && (
               <div className="mt-24 flex flex-col items-center space-y-6">
                 <div className="relative">
-                  <div className="w-20 h-20 border-t-4 border-rose-500 border-solid rounded-full animate-spin"></div>
+                  <div className="w-20 h-20 border-t-4 border-indigo-500 border-solid rounded-full animate-spin"></div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <BarChart2 className="w-8 h-8 text-indigo-400 animate-pulse" />
+                    <BarChart2 className="w-8 h-8 text-rose-400 animate-pulse" />
                   </div>
                 </div>
                 <div className="text-center">
-                  <p className="text-white font-black text-lg tracking-tight uppercase italic">Syncing Market Data</p>
-                  <p className="text-slate-500 text-sm font-medium animate-pulse">금융위원회 실시간 시세 데이터를 취득하고 지침서를 구성 중입니다...</p>
+                  <p className="text-white font-black text-lg tracking-tight uppercase italic">Synting Global Market Data</p>
+                  <p className="text-slate-500 text-sm font-medium animate-pulse">글로벌 마켓 데이터를 확인하고 분석 지침서를 구성 중입니다...</p>
                 </div>
               </div>
             )}
 
             {generatedPrompt && (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-8 pb-20">
-                <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-3xl p-6 flex items-start space-x-5 shadow-inner">
-                  <div className="bg-indigo-500/20 p-2 rounded-xl">
-                    <Info className="text-indigo-400 w-6 h-6 flex-shrink-0" />
+                <div className="bg-rose-600/10 border border-rose-500/20 rounded-3xl p-6 flex items-start space-x-5 shadow-inner">
+                  <div className="bg-rose-500/20 p-2 rounded-xl">
+                    <Globe className="text-rose-400 w-6 h-6 flex-shrink-0" />
                   </div>
                   <div>
-                    <h4 className="text-white font-bold text-sm uppercase tracking-wide">성공적으로 생성되었습니다!</h4>
-                    <p className="text-indigo-100/60 text-xs lg:text-sm leading-relaxed mt-1">
-                      질문지가 복사되었습니다. 아래 버튼을 눌러 제미나이(Gemini)에 붙여넣으세요.
+                    <h4 className="text-white font-bold text-sm uppercase tracking-wide">글로벌 분석 질문지 생성 완료</h4>
+                    <p className="text-rose-100/60 text-xs lg:text-sm leading-relaxed mt-1">
+                      미국 및 한국 시장 지침이 모두 포함되었습니다. 복사 후 제미나이(Gemini)에 붙여넣으세요.
                     </p>
                   </div>
                 </div>
 
                 <div className="relative group">
-                  <div className="absolute -inset-1 bg-gradient-to-br from-rose-500 to-indigo-600 rounded-[2.5rem] blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
+                  <div className="absolute -inset-1 bg-gradient-to-br from-indigo-500 to-rose-600 rounded-[2.5rem] blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
                   <div className="relative bg-[#0d1326] border border-slate-700/50 rounded-[2rem] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
                     <div className="flex items-center justify-between px-8 py-5 border-b border-slate-700/50 bg-slate-800/30">
                       <div className="flex items-center space-x-3">
-                        <div className="w-3 h-3 rounded-full bg-rose-500/80 shadow-[0_0_10px_#f43f5e]"></div>
-                        <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.2em]">Prompt Output</span>
+                        <div className="w-3 h-3 rounded-full bg-indigo-500/80 shadow-[0_0_10px_#6366f1]"></div>
+                        <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.2em]">Global Lead Prompt</span>
                       </div>
-                      <button onClick={copyToClipboard} className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-tighter transition-all shadow-lg ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white hover:scale-105 active:scale-95'}`}>
+                      <button onClick={copyToClipboard} className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-tighter transition-all shadow-lg ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 active:scale-95'}`}>
                         {copySuccess ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copySuccess ? 'Copied' : 'Copy'}</span>
                       </button>
@@ -339,7 +353,7 @@ ${stockData ? `
                     <div className="p-6 lg:p-8 bg-[#0a0f1d] border-t border-slate-800 flex flex-col space-y-4">
                       <button 
                         onClick={handleOpenGemini}
-                        className="w-full py-5 bg-gradient-to-r from-indigo-700 to-indigo-500 hover:from-indigo-600 hover:to-indigo-400 text-white rounded-2xl font-black text-sm lg:text-base shadow-[0_10px_30px_rgba(79,70,229,0.3)] flex justify-center items-center space-x-4 transition-all transform hover:scale-[1.02] active:scale-95 border-t border-white/10"
+                        className="w-full py-5 bg-gradient-to-r from-rose-700 to-rose-500 hover:from-rose-600 hover:to-rose-400 text-white rounded-2xl font-black text-sm lg:text-base shadow-[0_10px_30px_rgba(244,63,94,0.3)] flex justify-center items-center space-x-4 transition-all transform hover:scale-[1.02] active:scale-95 border-t border-white/10"
                       >
                         <ExternalLink className="w-6 h-6" />
                         <span>복사 후 제미나이(Gemini)로 이동</span>
