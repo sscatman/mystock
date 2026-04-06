@@ -23,15 +23,13 @@ import {
 /**
  * AI Hyper-Analyst GLOBAL V0.6
  * 업데이트 내역:
- * 1. 미국 주식(미장) 지원: 영문 티커 입력 시 글로벌 모드 자동 전환
- * 2. 시장 구분 로직: 한국(숫자 코드) vs 미국(영문 티커) 감지
- * 3. 글로벌 프롬프트 엔진: 환율, 미국 증시 지수(나스닥/S&P500) 분석 지침 추가
- * 4. UI 업그레이드: KOR -> GLOBAL 명칭 변경
+ * 1. 질문지 내 '이하 생략' 제거: 모든 분석 지침(수식, 테이블, 검증 로직)을 풀텍스트로 출력
+ * 2. 무료 버전 AI 사용자 최적화: 추가 질문 없이 한 번에 결과 도출 가능
+ * 3. 한국/미국 시장 자동 감지 및 글로벌 분석 프레임워크 유지
  */
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
 
 const fetchRealStockData = async (ticker) => {
-  // 영문 티커(미국 주식)인 경우 한국 공공데이터 API 호출 스킵
   const isKOR = /^\d+$/.test(ticker);
   if (!isKOR) return null;
 
@@ -134,36 +132,80 @@ export default function App() {
     const marketType = isKOR ? "한국 거래소(KRX)" : "미국 증시(NASDAQ/NYSE/AMEX)";
     const currency = isKOR ? "KRW (₩)" : "USD ($)";
     
+    // 생략 없는 전체 질문지 생성
     const fullPrompt = `
 [역할] 월스트리트 수석 애널리스트 (글로벌 자산운용사 시니어 전략가)
 [시장 구분] ${marketType}
-[대상] ${stockData ? stockData.name : upperTicker} (심볼: ${upperTicker})
+[대상] ${stockData ? stockData.name : upperTicker} (공식 기업명: ${stockData ? stockData.name : upperTicker})
 [모드] MAIN (전문가용 심층 분석 모드)
-[중점 분석] ${analysisItems.join(', ')}
+[중점 분석 항목] ${analysisItems.join(', ')}
 [투자 관점] ${term}
 [분석 레벨] ${level}
 [통화 단위] ${currency}
 
 **주의: '${upperTicker}'는 ${marketType}의 기업입니다. 다른 국가의 기업과 혼동하지 마십시오.**
-${!isKOR ? "미국 시장 분석 시 나스닥(NASDAQ) 및 S&P 500 지수 추이, 원/달러 환율 영향력을 반드시 포함하십시오." : ""}
+이 분석은 '${level.split('.')[1]}' 모드입니다. 미래 불확실성을 고려하여 확률적 접근이 필수적입니다.
+${!isKOR ? "특히 미국 시장 분석 시 나스닥(NASDAQ) 및 S&P 500 지수 추이, 원/달러 환율 영향력을 반드시 포함하십시오." : ""}
 
 [데이터 요약]
 ${stockData ? `
 - 현재 주가: ${stockData.price} ${stockData.currency}
 - 전일 대비: ${stockData.change} (${stockData.changeRate}%)
 - 거래량: ${stockData.volume}
-- 시가총액: ${stockData.marketCap}
-` : `- 실시간 데이터 검색 필요: ${upperTicker}의 최신 주가, 거래량, 시가총액 정보를 실시간 검색하여 반영하십시오.`}
+- 시가총액: ${stockData.marketCap} (공공데이터 API 실시간 반영)
+` : `- 실시간 데이터 검색 필요: ${upperTicker}의 최신 주가, 거래량, 시가총액 정보를 실시간 검색하여 분석에 반영하십시오.`}
 
 [분석 지침]
-⚠️ **[필수 준수 사항]** ⚠️
-1. **생략 금지**: 모든 분석 항목(${analysisItems.join(', ')})을 상세히 분석하십시오.
-2. **글로벌 스탠다드**: 미국 주식의 경우 Yahoo Finance, Bloomberg, Seeking Alpha 등의 글로벌 컨센서스를 인용하십시오.
-3. **고품질 유지**: 각 항목별 최소 150단어 이상, 구체적 데이터 기반 포인트 포함.
-4. **구조화**: ## 섹션 헤더 사용 및 Graham/DCF 가치 산출 표 필수 포함.
+**다음의 항목들을 순서대로 빠짐없이 분석하십시오.**
+
+⚠️ **[필수 준수 사항 - 매우 중요]** ⚠️
+1. **생략 금지**: 사용자가 선택한 모든 분석 항목은 **예외 없이 반드시** 분석해야 합니다. "지면 관계상 생략", "간략히 언급하면" 등의 표현은 절대 금지됩니다.
+2. **일관된 분석 품질**: 각 분석 항목은 **최소 3-5개의 구체적 포인트**를 포함해야 하며, 데이터와 근거를 바탕으로 상세히 설명하십시오.
+   - 각 항목별 분석 분량: 최소 150단어 이상 (표 제외)
+3. **구조화된 출력**: 각 분석 항목은 별도의 섹션 헤더(##)로 구분하십시오.
+4. **체크리스트 확인**: 답변 완료 전 모든 항목이 포함되었는지 스스로 검토하고 누락 시 추가 작성하십시오.
 
 ---
-(이하 생략 - 상세 분석 수행)
+
+0. **[기업 기본 정보 (Company Overview)]**
+보고서의 가장 첫 부분에 다음 데이터를 사용하여 **마크다운 표**를 작성하십시오.
+| 항목 | 내용 |
+|---|---|
+| 정식 기업명 | ${stockData ? stockData.name : upperTicker} |
+| 티커(심볼) | ${upperTicker} |
+| 섹터 (Sector) | (최신 정보 기입) |
+| 산업 (Industry) | (최신 정보 기입) |
+| 국가 | ${isKOR ? "대한민국" : "미국"} |
+| 시가총액 | ${stockData ? stockData.marketCap : '검색 결과 반영'} |
+
+1. **[성장주/가치주 정의 및 핵심 지표 분석]**
+- 이 기업이 '성장주(Growth Stock)'인지 '가치주(Value Stock)'인지 규명하십시오.
+- **성장주라면**: 매출 성장률(5년 추이), Cash Flow 증가세, ROI 개선, Profit Margin 방향성, 실적 지속성을 중점 분석.
+- **가치주라면**: 시장 점유율 추이, 배당금 안정성, 주가 안정성, 이익률(Margin) 변화, EPS 트렌드를 중점 분석.
+
+2. **[중점 분석 항목 상세]**
+⚠️ **아래 모든 항목을 개별 섹션(##)으로 상세 분석하십시오. 절대 생략 금지!**
+${analysisItems.map(item => `- ${item}`).join('\n')}
+
+- **만약 'P/E Ratio'가 포함되어 있다면**: P/E TTM(Trailing Twelve Months)과 Forward P/E를 비교 분석하고, 업종 평균 P/E와의 괴리율, 역사적 P/E 밴드 내 현재 위치를 평가하십시오.
+- **만약 'Intrinsic Value' 또는 'DCF'가 포함되어 있다면**: 두 가지 방법론으로 각각 정확한 가격을 산출하십시오.
+  * **[1] Intrinsic Value (내재가치)**: Graham 공식 (V = EPS × (8.5 + 2g)) 또는 성장률 기반 가치 산출.
+  * **[2] DCF Value (현금흐름할인가치)**: FCF_t / (1+WACC)^t 기반 산출. WACC, 영구성장률, 예측 기간을 명시한 표를 포함하십시오.
+  * 반드시 [가치평가 항목 | 산출 금액 | 현재가 대비] 형식의 표를 작성하십시오.
+
+- **만약 '기술적 지표'가 포함되어 있다면**: RSI(14) 값과 이동평균선(MA5, MA20, MA60, MA120) 수치를 인용하여 분석하십시오.
+
+3. **[투자성향별 포트폴리오 비중 분석]**
+보수적(Stable), 중립적(Balanced), 공격적(Aggressive) 투자자 각각에 대한 권장 보유 비중(%)과 논리적 이유를 제시하십시오.
+
+4. **[시나리오별 확률 및 근거 (Scenario Analysis)]**
+Bull(낙관), Base(기본), Bear(비관) 3가지 시나리오별 예상 주가 밴드와 실현 확률(%) 및 정량적 근거를 설명하십시오.
+
+[결론]
+반드시 [매수 / 매도 / 관망] 중 하나의 명확한 투자 의견을 한국어로 제시하며 마무리하십시오.
+
+⚠️ **[최종 검증 확인]**
+위 분석 리스트(${analysisItems.join(', ')})가 모두 텍스트 내에 존재하는지 확인 후 답변을 마칩니다.
     `.trim();
 
     setTimeout(() => {
@@ -197,8 +239,8 @@ ${stockData ? `
             <Globe className="text-indigo-400 w-6 h-6" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-lg font-black bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent italic leading-tight">Global Analyst</h1>
-            <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V0.6 GLOBAL</span>
+            <h1 className="text-lg font-black bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent italic leading-tight text-left">Global Analyst</h1>
+            <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold text-left">V0.6 GLOBAL</span>
           </div>
         </div>
         
@@ -237,14 +279,14 @@ ${stockData ? `
               {availableItems.map((item, idx) => (
                 <label key={idx} className="flex items-start space-x-3 cursor-pointer group p-1.5 rounded-md hover:bg-slate-700/50 transition-all">
                   <input type="checkbox" className="mt-1 w-3.5 h-3.5 rounded border-slate-600 text-rose-500 focus:ring-rose-500 bg-slate-900" checked={analysisItems.includes(item)} onChange={() => toggleAnalysisItem(item)} />
-                  <span className="text-[10px] text-slate-400 group-hover:text-slate-100 leading-snug">{item}</span>
+                  <span className="text-[10px] text-slate-400 group-hover:text-slate-100 leading-snug text-left">{item}</span>
                 </label>
               ))}
             </div>
           </div>
 
           <div className="space-y-3 pt-2">
-            <label className="text-xs font-bold text-slate-200 block uppercase tracking-tighter text-left">Symbol (AAPL, NVDA, 005930)</label>
+            <label className="text-xs font-bold text-slate-200 block uppercase tracking-tighter text-left text-left">Symbol (AAPL, NVDA, 005930)</label>
             <div className="relative group">
               <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-500 group-focus-within:text-rose-500 transition-colors" />
               <input type="text" value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="Symbol (예: NVDA, 005930)" className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all placeholder-slate-600" onKeyDown={(e) => e.key === 'Enter' && handleGeneratePrompt()} />
@@ -273,11 +315,11 @@ ${stockData ? `
                   <Globe className="text-rose-400 w-10 h-10" />
                 </div>
                 <div>
-                  <h1 className="text-2xl lg:text-3xl font-black tracking-tighter text-white italic uppercase leading-none">
+                  <h1 className="text-2xl lg:text-3xl font-black tracking-tighter text-white italic uppercase leading-none text-left">
                     Hyper Analyst <span className="text-indigo-500 underline decoration-rose-500 decoration-4 underline-offset-8">GLOBAL</span>
                     <span className="text-sm font-normal text-slate-500 ml-3 not-italic">V0.6</span>
                   </h1>
-                  <p className="text-slate-500 text-sm mt-3 font-medium">KOR & GLOBAL Professional Prompt Engine</p>
+                  <p className="text-slate-500 text-sm mt-3 font-medium text-left">KOR & GLOBAL Professional Prompt Engine</p>
                 </div>
               </div>
               <div className="hidden lg:flex items-center space-x-2 text-slate-600 bg-slate-800/40 px-3 py-1.5 rounded-full border border-slate-700/50">
@@ -312,7 +354,7 @@ ${stockData ? `
                   </div>
                 </div>
                 <div className="text-center">
-                  <p className="text-white font-black text-lg tracking-tight uppercase italic">Synting Global Market Data</p>
+                  <p className="text-white font-black text-lg tracking-tight uppercase italic">Syncing Global Market Data</p>
                   <p className="text-slate-500 text-sm font-medium animate-pulse">글로벌 마켓 데이터를 확인하고 분석 지침서를 구성 중입니다...</p>
                 </div>
               </div>
@@ -325,9 +367,9 @@ ${stockData ? `
                     <Globe className="text-rose-400 w-6 h-6 flex-shrink-0" />
                   </div>
                   <div>
-                    <h4 className="text-white font-bold text-sm uppercase tracking-wide">글로벌 분석 질문지 생성 완료</h4>
-                    <p className="text-rose-100/60 text-xs lg:text-sm leading-relaxed mt-1">
-                      미국 및 한국 시장 지침이 모두 포함되었습니다. 복사 후 제미나이(Gemini)에 붙여넣으세요.
+                    <h4 className="text-white font-bold text-sm uppercase tracking-wide text-left">글로벌 분석 질문지 생성 완료</h4>
+                    <p className="text-rose-100/60 text-xs lg:text-sm leading-relaxed mt-1 text-left">
+                      모든 생략 지침이 제거된 전체 분석 지침이 포함되었습니다. 복사 후 제미나이에 붙여넣으세요.
                     </p>
                   </div>
                 </div>
@@ -338,7 +380,7 @@ ${stockData ? `
                     <div className="flex items-center justify-between px-8 py-5 border-b border-slate-700/50 bg-slate-800/30">
                       <div className="flex items-center space-x-3">
                         <div className="w-3 h-3 rounded-full bg-indigo-500/80 shadow-[0_0_10px_#6366f1]"></div>
-                        <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.2em]">Global Lead Prompt</span>
+                        <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.2em]">Full Lead Prompt</span>
                       </div>
                       <button onClick={copyToClipboard} className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-tighter transition-all shadow-lg ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 active:scale-95'}`}>
                         {copySuccess ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -346,7 +388,7 @@ ${stockData ? `
                       </button>
                     </div>
                     
-                    <div className="p-8 lg:p-12 max-h-[50vh] lg:max-h-[60vh] overflow-y-auto custom-scrollbar font-mono text-[12px] lg:text-[14px] leading-[1.8] text-slate-300 whitespace-pre-wrap select-all bg-[#080d1a]/50">
+                    <div className="p-8 lg:p-12 max-h-[50vh] lg:max-h-[60vh] overflow-y-auto custom-scrollbar font-mono text-[12px] lg:text-[14px] leading-[1.8] text-slate-300 whitespace-pre-wrap select-all bg-[#080d1a]/50 text-left">
                       {generatedPrompt}
                     </div>
                     
