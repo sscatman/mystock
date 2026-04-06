@@ -24,11 +24,12 @@ import {
 } from 'lucide-react';
 
 /**
- * AI Hyper-Analyst GLOBAL V0.9
+ * AI Hyper-Analyst GLOBAL V1.1
  * 업데이트 내역:
- * 1. 버전 표시 고정: 메인 타이틀 옆 "Hyper Analyst GLOBAL V0.9"
- * 2. 프롬프트 엔진 무삭제 반영: 사용자가 요청한 모든 지침, 표 형식, 검증 로직 풀텍스트 포함
- * 3. 요약 방지 지침 강화: 모든 항목에 대한 최소 분량 및 깊이 강제
+ * 1. 무삭제 프롬프트 엔진: 사용자가 제공한 모든 지침, 표 형식, 검증 로직을 100% 풀텍스트로 반영
+ * 2. 버전 표시 고정: 메인 타이틀 옆 "Hyper Analyst GLOBAL V1.1"
+ * 3. 상세 분석 지침: P/E 괴리율, Graham 공식, DCF 가정 표, 적정 주가 밴드 산출 로직 포함
+ * 4. 최종 검증 체크리스트: AI의 답변 누락을 방지하는 자가 검증 문구 삽입
  */
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
 
@@ -165,11 +166,14 @@ ${stockData ? `
 ` : 'Chart Data Not Available.\n가격 정보 조회 실패'}
 
 [재무 지표]
-N/A (최신 데이터를 직접 검색하여 반영하십시오.)
+N/A (최신 분기 리포트 및 지표를 직접 검색하여 분석에 반영하십시오.)
 
-[관련 뉴스]
-${useNews ? `- [Google News] (최신 뉴스를 형식에 맞게 수집하십시오.)` : ""}
-${useTwitter ? `- [X (via News)] (실시간 시장 반응을 수집하십시오.)` : ""}
+[관련 뉴스 및 산업 동향 전략]
+${useNews ? `
+- [Company News]: '${upperTicker}' 기업 개별 호재/악재 뉴스를 3-5개 수집하십시오.
+- [Category/Sector News]: 이 기업이 속한 핵심 산업 카테고리(예: ${upperTicker === 'NVDA' ? 'AI, 반도체, 데이터센터' : upperTicker === 'IONQ' ? '양자 컴퓨팅, 차세대 연산' : '해당 산업군'})에 대한 매크로 트렌드와 기술적 동향 뉴스를 반드시 포함하여 분석하십시오.
+` : ""}
+${useTwitter ? `- [X (via News)] (실시간 시장 반응 및 전문가들의 산업 전망 트윗을 수집하십시오.)` : ""}
 
 [분석 지침]
 **다음의 항목들을 순서대로 빠짐없이 분석하십시오.**
@@ -242,14 +246,20 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
 
      * 두 가치(Intrinsic Value, DCF Value)의 평균을 "적정 주가 밴드"로 제시하십시오.
 
-   - **만약 '베타(β)' 또는 'WACC'가 포함되어 있다면**: Systematic Risk 및 자본비용 대비 초과 수익을 분석하십시오.
+   - **만약 '베타(β)' 또는 'WACC'가 포함되어 있다면**: Systematic Risk 및 자본비용 대비 초과 수익(Value Creation)을 분석하십시오.
    - **만약 '기술적 지표'가 포함되어 있다면**: RSI(14) 값과 이동평균선(MA5, MA20, MA60, MA120) 수치를 반드시 인용하여 분석하십시오.
+   - 예: **투자기관 컨센서스/목표주가**, **뉴스 호재/악재**, **수급(외국인/기관)**, **경쟁사 비교**, **매매 전략** 등이 포함되어 있다면 반드시 해당 내용을 구체적으로 서술해야 합니다.
 
 3. **[투자성향별 포트폴리오 비중 분석]**
-   - (1) 보수적 투자자 (Stable), (2) 중립적 투자자 (Balanced), (3) 공격적 투자자 (Aggressive) 각각에 대한 권장 보유 비중(%)과 이유를 구체적으로 제시하십시오.
+   - 다음 3가지 투자 성향에 맞춰 이 종목의 **권장 보유 비중(%)**과 **그 이유**를 구체적으로 제시하십시오.
+   - (1) **보수적 투자자 (Stable)**: 리스크 최소화 선호, 원금 보존 중시.
+   - (2) **중립적 투자자 (Balanced)**: 성장과 안정의 균형, 시장 평균 수익률 추구.
+   - (3) **공격적 투자자 (Aggressive)**: 높은 변동성 감내, 고수익(Alpha) 추구.
 
 4. **[시나리오별 확률 및 근거 (Scenario Analysis)]**
-   - Bull (낙관) / Base (기본) / Bear (비관) 3가지 시나리오를 설정하고 예상 주가 밴드와 실현 확률(%) 및 논리적/정량적 근거를 설명하십시오.
+   - **Bull (낙관) / Base (기본) / Bear (비관)** 3가지 시나리오를 설정하십시오.
+   - 각 시나리오별 **예상 주가 밴드**와 **실현 확률(%)**을 명시적으로 제시하십시오.
+   - 왜 그러한 확률이 배정되었는지에 대한 **논리적/정량적 근거**를 상세히 설명하십시오.
 
 [출력 형식]
 - 보고서는 가독성 있게 마크다운 형식으로 작성하십시오.
@@ -280,7 +290,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
       <div className="lg:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800 z-30">
         <div className="flex items-center space-x-2">
           <Globe className="text-rose-500 w-5 h-5" />
-          <span className="font-extrabold text-xs uppercase tracking-tighter">Hyper Analyst Global V0.9</span>
+          <span className="font-extrabold text-xs uppercase tracking-tighter">Hyper Analyst Global V1.1</span>
         </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 bg-slate-800 rounded-lg">
           {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -298,8 +308,8 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
             <TrendingUp className="text-rose-500 w-6 h-6" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-lg font-black text-white italic leading-tight">프롬프트 빌더</h1>
-            <span className="text-[10px] text-slate-400 font-mono tracking-widest uppercase font-bold text-left">Main Interface</span>
+            <h1 className="text-lg font-black text-white italic leading-tight text-left">프롬프트 빌더</h1>
+            <span className="text-[10px] text-slate-400 font-mono tracking-widest uppercase font-bold text-left">Professional Mode</span>
           </div>
         </div>
         
@@ -318,21 +328,21 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                 <div className={`w-8 h-4 rounded-full relative transition-colors ${useTwitter ? 'bg-rose-500' : 'bg-slate-600'}`}>
                   <button onClick={() => setUseTwitter(!useTwitter)} className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useTwitter ? 'left-[18px]' : 'left-[2px]'}`}></button>
                 </div>
-                <span className="text-sm font-medium text-slate-300">x(트위터) 뉴스 포함</span>
+                <span className="text-sm font-medium text-slate-300">x(트위터) 트렌드 포함</span>
               </div>
             </div>
           </div>
 
           <div className="border border-slate-600 rounded-xl overflow-hidden bg-slate-800/50">
             <button onClick={() => setIsFocusMenuOpen(!isFocusMenuOpen)} className="w-full p-3 flex items-center justify-between hover:bg-slate-700 transition-colors">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="w-4 h-4 text-indigo-400" />
+              <div className="flex items-center space-x-2 text-left">
+                <CheckCircle className="w-4 h-4 text-indigo-400 mr-2" />
                 <span className="text-sm font-bold text-slate-200">중점 분석 항목</span>
               </div>
               <ChevronDown className={`w-4 h-4 transition-transform ${isFocusMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             {isFocusMenuOpen && (
-              <div className="p-3 pt-0 space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
+              <div className="p-3 pt-0 space-y-1.5 max-h-80 overflow-y-auto custom-scrollbar">
                 <label className="flex items-center space-x-3 p-1.5 rounded hover:bg-slate-700/50 cursor-pointer">
                   <input type="checkbox" className="w-4 h-4 rounded border-slate-500 text-rose-500" checked={analysisItems.length === availableItems.length} onChange={selectAllItems} />
                   <span className="text-xs font-bold text-rose-400">전체 선택</span>
@@ -340,7 +350,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                 {availableItems.map((item, idx) => (
                   <label key={idx} className="flex items-start space-x-3 p-1.5 rounded hover:bg-slate-700/50 cursor-pointer">
                     <input type="checkbox" className="mt-0.5 w-4 h-4 rounded border-slate-500 text-indigo-500" checked={analysisItems.includes(item)} onChange={() => toggleAnalysisItem(item)} />
-                    <span className="text-[11px] text-slate-300 text-left">{item}</span>
+                    <span className="text-[11px] text-slate-300 text-left leading-snug">{item}</span>
                   </label>
                 ))}
               </div>
@@ -367,7 +377,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
         <div className="p-6 bg-[#0f172a] border-t border-slate-700">
           <button onClick={handleGeneratePrompt} disabled={isGenerating} className={`w-full py-4 rounded-2xl font-black text-xs uppercase text-white shadow-2xl flex justify-center items-center space-x-2 transition-all active:scale-95 ${isGenerating ? 'bg-slate-700' : 'bg-gradient-to-br from-indigo-600 to-indigo-800'}`}>
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
-            <span>{isGenerating ? 'BUILDING...' : 'Build Pro Prompt'}</span>
+            <span>{isGenerating ? 'BUILDING V1.1' : 'Build Full Prompt'}</span>
           </button>
         </div>
       </div>
@@ -376,7 +386,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
       <div className="flex-1 flex flex-col h-full bg-[#0a0f1e] relative overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:40px_40px]"></div>
         
-        <div className="relative h-full flex flex-col p-4 lg:p-12 overflow-y-auto custom-scrollbar">
+        <div className="relative h-full flex flex-col p-4 lg:p-12 overflow-y-auto custom-scrollbar text-left">
           <div className="max-w-5xl mx-auto w-full pb-20">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 space-y-6 lg:space-y-0">
               <div className="flex items-start space-x-5">
@@ -384,20 +394,23 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                   <Cpu className="text-indigo-400 w-10 h-10" />
                 </div>
                 <div>
-                  <h1 className="text-3xl lg:text-4xl font-black tracking-tighter text-white italic uppercase leading-none text-left">
-                    Hyper Analyst <span className="text-rose-500 underline decoration-indigo-500 decoration-4 underline-offset-8">GLOBAL</span>
-                    <span className="text-sm font-normal text-slate-500 ml-4 not-italic">V0.9</span>
-                  </h1>
-                  <p className="text-slate-500 text-sm mt-3 font-medium uppercase tracking-widest text-left">Ultimate Wall-Street Grade Prompt Engine</p>
+                  <div className="flex items-center">
+                    <h1 className="text-3xl lg:text-4xl font-black tracking-tighter text-white italic uppercase leading-none">
+                      Hyper Analyst <span className="text-rose-500 underline decoration-indigo-500 decoration-4 underline-offset-8">GLOBAL</span>
+                    </h1>
+                    <span className="text-sm font-normal text-slate-500 ml-4 not-italic font-mono">V1.1</span>
+                  </div>
+                  <p className="text-slate-500 text-sm mt-3 font-medium uppercase tracking-widest">Industry & Stock Full-Text Engine</p>
                 </div>
               </div>
             </div>
 
+            {/* Prompt Result Display remains same as V1.0 but with updated handleGeneratePrompt content */}
             {!generatedPrompt && !isGenerating && (
               <div className="mt-16 lg:mt-24 flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
                 <FileSearch className="text-slate-500 w-16 h-16" />
-                <h3 className="text-xl lg:text-2xl font-black text-white uppercase tracking-tighter">Ready to Build PRO Prompt</h3>
-                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">종목을 입력하고 하단의 버튼을 눌러주세요. 모든 가치평가 표와 생략 없는 분석 지침이 포함됩니다.</p>
+                <h3 className="text-xl lg:text-2xl font-black text-white uppercase tracking-tighter">Ready to Build V1.1 PRO Prompt</h3>
+                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">모든 상세 지침이 복원되었습니다. 버튼을 눌러 요약 없는 전문가용 분석 질문지를 생성하세요.</p>
               </div>
             )}
 
@@ -410,19 +423,19 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
 
             {generatedPrompt && (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-8">
-                <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-3xl p-6 flex items-start space-x-5">
+                <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-3xl p-6 flex items-start space-x-5 shadow-inner">
                   <Info className="text-indigo-400 w-6 h-6 flex-shrink-0" />
                   <div>
-                    <h4 className="text-white font-bold text-sm uppercase tracking-wide text-left">분석 지침서 생성 완료 (무삭제 V0.9)</h4>
-                    <p className="text-indigo-100/60 text-xs lg:text-sm leading-relaxed mt-1 text-left">사용자께서 주신 모든 표 형식과 검증 체크리스트가 포함되었습니다. 복사 후 제미나이에 붙여넣으세요.</p>
+                    <h4 className="text-white font-bold text-sm uppercase tracking-wide">분석 지침서 생성 완료 (V1.1 무삭제)</h4>
+                    <p className="text-indigo-100/60 text-xs lg:text-sm leading-relaxed mt-1">사용자께서 주신 모든 표 형식, 서론 생략 지침, 결론 도출 전략 및 검증 체크리스트가 포함되었습니다.</p>
                   </div>
                 </div>
 
                 <div className="relative group">
                   <div className="absolute -inset-1 bg-gradient-to-br from-rose-500 to-indigo-600 rounded-[2.5rem] blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
-                  <div className="relative bg-[#0d1326] border border-slate-700/50 rounded-[2rem] overflow-hidden shadow-2xl text-left">
+                  <div className="relative bg-[#0d1326] border border-slate-700/50 rounded-[2rem] overflow-hidden shadow-2xl">
                     <div className="flex items-center justify-between px-8 py-5 border-b border-slate-700/50 bg-slate-800/30">
-                      <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.2em]">Wall-Street Grade Output</span>
+                      <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.2em]">Wall-Street Grade Full Output</span>
                       <button onClick={copyToClipboard} className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}>
                         {copySuccess ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copySuccess ? 'Copied' : 'Copy Full'}</span>
