@@ -13,23 +13,22 @@ import {
   Menu,
   X,
   FileSearch,
-  Globe,
+  Globe, 
   Star,
   Zap,
   ChevronDown,
   MousePointer2,
   FileText,
   History,
-  Database // 누락된 Database 아이콘 추가
+  Database
 } from 'lucide-react';
 
 /**
- * AI Hyper-Analyst GLOBAL V1.10 ULTRA-LIGHT (FIXED)
+ * AI Hyper-Analyst GLOBAL V1.10 ULTRA-LIGHT (COPY FIX)
  * 업데이트 내역:
- * 1. ReferenceError 수정: Database 아이콘 임포트 누락 해결
- * 2. 제로 클릭 자동화: 종목명 입력 시 대표 코드를 자동 매칭하여 프롬프트 즉시 생성
+ * 1. 복사 편의성 개선: 출력물 영역의 '전체 선택(select-all)' 속성을 제거하여 부분 복사 가능하도록 수정
+ * 2. 제로 클릭 자동화 유지: 종목명 입력 시 대표 코드를 자동 매칭하여 프롬프트 즉시 생성
  * 3. 무삭제 지침 엔진: 모든 분석 수식(Graham, DCF) 및 분량 제한(150단어) 지침 100% 보존
- * 4. LIGHT 레이아웃: 분석 결과 가독성을 극대화한 전면 분석 뷰 적용
  */
 
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
@@ -52,7 +51,6 @@ const availableItems = [
 
 export default function App() {
   const [ticker, setTicker] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [activeStockData, setActiveStockData] = useState(null);
   
@@ -67,7 +65,6 @@ export default function App() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // 자동 종목 검색 및 즉시 생성 로직
   useEffect(() => {
     const autoGenerate = setTimeout(async () => {
       const cleanInput = ticker.trim();
@@ -376,8 +373,8 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                 </div>
               </div>
             ) : generatedPrompt ? (
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-10">
-                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 flex items-start space-x-6 shadow-inner relative overflow-hidden text-left">
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-10 text-left">
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 flex items-start space-x-6 shadow-inner relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-4 opacity-5">
                     <CheckCircle className="w-24 h-24 text-emerald-500" />
                   </div>
@@ -387,7 +384,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                       Auto-Matched Symbol: <span className="ml-2 text-emerald-400">{activeStockData?.name} ({activeStockData?.code})</span>
                     </h4>
                     <p className="text-emerald-100/60 text-xs lg:text-sm leading-relaxed mt-2 font-medium">
-                      모든 분석 지침이 포함된 전문가용 프롬프트가 자동 생성되었습니다. 아래 내용을 복사하여 제미나이에 바로 붙여넣으세요.
+                      모든 분석 지침이 포함된 전문가용 프롬프트가 자동 생성되었습니다. 아래 내용을 자유롭게 선택하여 복사하거나 이동 버튼을 누르세요.
                     </p>
                   </div>
                 </div>
@@ -396,7 +393,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                   <div className="absolute -inset-1 bg-gradient-to-br from-rose-500 to-indigo-600 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
                   <div className="relative bg-[#0d1326] border border-slate-800 rounded-[2rem] overflow-hidden shadow-2xl">
                     <div className="flex items-center justify-between px-8 py-6 border-b border-slate-800 bg-slate-900/50">
-                      <div className="flex items-center space-x-3 text-left">
+                      <div className="flex items-center space-x-3">
                         <div className="p-1.5 bg-rose-500/10 rounded-lg">
                           <FileText className="w-4 h-4 text-rose-500" />
                         </div>
@@ -407,11 +404,12 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                         <span>{copySuccess ? 'Copied to Clipboard' : 'Copy Full Text'}</span>
                       </button>
                     </div>
-                    <div className="p-8 lg:p-12 max-h-[65vh] overflow-y-auto custom-scrollbar font-mono text-[13px] lg:text-[15px] leading-[1.8] text-slate-300 whitespace-pre-wrap select-all bg-[#080d1a]/80 text-left selection:bg-rose-500/30">
+                    {/* select-all 속성을 제거하여 부분 선택 및 부분 복사가 가능하도록 수정함 */}
+                    <div className="p-8 lg:p-12 max-h-[65vh] overflow-y-auto custom-scrollbar font-mono text-[13px] lg:text-[15px] leading-[1.8] text-slate-300 whitespace-pre-wrap bg-[#080d1a]/80 text-left selection:bg-rose-500/30">
                       {generatedPrompt}
                     </div>
                     <div className="p-8 bg-[#0a1122] border-t border-slate-800 text-center">
-                      <button onClick={() => { copyToClipboard(); window.open('https://gemini.google.com/app', '_blank'); }} className="w-full py-6 bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white rounded-2xl font-black text-sm lg:text-base shadow-[0_20px_40px_rgba(79,70,229,0.2)] flex justify-center items-center space-x-4 transition-all transform hover:scale-[1.01] active:scale-95">
+                      <button onClick={() => { copyToClipboard(); window.open('https://gemini.google.com/app', '_blank'); }} className="w-full py-6 bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-400 text-white rounded-2xl font-black text-sm lg:text-base shadow-[0_20px_40px_rgba(79,70,229,0.2)] flex justify-center items-center space-x-4 transition-all transform hover:scale-[1.01] active:scale-95">
                         <ExternalLink className="w-6 h-6" />
                         <span>복사 후 제미나이(Gemini)로 이동하여 분석 시작</span>
                       </button>
@@ -425,7 +423,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                    <div className="absolute inset-0 bg-indigo-500/5 blur-3xl rounded-full"></div>
                    <FileSearch className="text-slate-700 w-20 h-20 relative z-10" />
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-4 text-center">
                   <h3 className="text-2xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter">Enter Stock Name to Start</h3>
                   <p className="text-slate-600 text-sm max-w-md mx-auto leading-relaxed font-medium">
                     기업 이름을 입력하면 자동으로 대표 코드를 조회하여<br/>
