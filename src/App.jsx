@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   TrendingUp, 
@@ -20,18 +20,29 @@ import {
   Globe,
   Star,
   Zap,
-  ChevronDown
+  ChevronDown,
+  Layout
 } from 'lucide-react';
 
 /**
- * AI Hyper-Analyst GLOBAL V1.02
+ * AI Hyper-Analyst GLOBAL V1.02 + Real-time Chart
  * 업데이트 내역:
- * 1. 사이드바 레이아웃 수정: 전체 스크롤 가능하도록 변경 및 분석 항목 가시성 개선
- * 2. 버전 표시 고정: 메인 타이틀 옆 "V1.02" 유지
- * 3. 무삭제 프롬프트 엔진: 사용자가 요청한 모든 지침, 표 형식, 체크리스트 100% 유지
- * 4. 산업 카테고리 연동 뉴스 검색 로직 포함 (AI, 양자 등 섹터 분석 지침)
+ * 1. TradingView 실시간 차트 위젯 통합
+ * 2. 티커별 시장(KRX/US) 자동 매핑 로직 추가
+ * 3. 차트 레이아웃 및 다크모드 테마 최적화
  */
+
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
+
+// 티커 형식을 판단하여 트레이딩뷰 심볼로 변환
+const getTradingViewSymbol = (ticker) => {
+  const cleanTicker = ticker.toUpperCase().trim();
+  const isKOR = /^\d+$/.test(cleanTicker);
+  if (isKOR) return `KRX:${cleanTicker}`;
+  
+  // 미국 주식의 경우 거래소 구분이 필요할 수 있으나 기본적으로 검색 기능을 활용하도록 설정
+  return cleanTicker; 
+};
 
 const fetchRealStockData = async (ticker) => {
   const isKOR = /^\d+$/.test(ticker);
@@ -78,15 +89,68 @@ const availableItems = [
   '단기/중기 매매 전략'
 ];
 
+// 트레이딩뷰 차트 컴포넌트
+const TradingViewWidget = ({ symbol }) => {
+  const container = useRef();
+
+  useEffect(() => {
+    // 스크립트가 이미 존재하는지 확인
+    const existingScript = document.getElementById('tradingview-widget-script');
+    
+    const createWidget = () => {
+      if (container.current && window.TradingView) {
+        new window.TradingView.widget({
+          "autosize": true,
+          "symbol": symbol,
+          "interval": "D",
+          "timezone": "Asia/Seoul",
+          "theme": "dark",
+          "style": "1",
+          "locale": "kr",
+          "toolbar_bg": "#f1f3f6",
+          "enable_publishing": false,
+          "hide_side_toolbar": false,
+          "allow_symbol_change": true,
+          "container_id": container.current.id,
+          "studies": [
+            "RSI@tv-basicstudies",
+            "MASimple@tv-basicstudies"
+          ],
+        });
+      }
+    };
+
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.id = 'tradingview-widget-script';
+      script.src = 'https://s3.tradingview.com/tv.js';
+      script.async = true;
+      script.onload = createWidget;
+      document.head.appendChild(script);
+    } else {
+      createWidget();
+    }
+  }, [symbol]);
+
+  return (
+    <div className="w-full h-[450px] bg-slate-900/50 rounded-3xl overflow-hidden border border-slate-700/50 shadow-2xl relative group">
+      <div id={`tv-chart-${symbol}`} ref={container} className="w-full h-full" />
+      <div className="absolute top-4 left-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="px-3 py-1 bg-rose-600 text-white text-[10px] font-black rounded-full shadow-lg uppercase">Live Analytics Mode</span>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
-  const [ticker, setTicker] = useState('아이온큐');
+  const [ticker, setTicker] = useState('IONQ');
+  const [activeSymbol, setActiveSymbol] = useState('IONQ');
   const [term, setTerm] = useState('중기 (6개월~1년)');
   const [level, setLevel] = useState('5.시나리오');
   const [analysisItems, setAnalysisItems] = useState(availableItems);
   
   const [useNews, setUseNews] = useState(true);
   const [useTwitter, setUseTwitter] = useState(true);
-  const [useMacro, setUseMacro] = useState(false);
   const [isFocusMenuOpen, setIsFocusMenuOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('search');
 
@@ -139,6 +203,11 @@ export default function App() {
   const handleGeneratePrompt = async () => {
     if (!ticker.trim()) return;
     setIsGenerating(true);
+    
+    // 차트 업데이트를 위해 실제 트레이딩뷰 심볼로 변환 후 저장
+    const tvSymbol = getTradingViewSymbol(ticker);
+    setActiveSymbol(tvSymbol);
+
     if (window.innerWidth < 1024) setIsSidebarOpen(false);
 
     const upperTicker = ticker.toUpperCase().trim();
@@ -344,7 +413,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
               <ChevronDown className={`w-4 h-4 transition-transform ${isFocusMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             {isFocusMenuOpen && (
-              <div className="p-3 pt-0 space-y-1.5 max-h-[50vh] overflow-y-auto custom-scrollbar bg-slate-900/20">
+              <div className="p-3 pt-0 space-y-1.5 max-h-[40vh] overflow-y-auto custom-scrollbar bg-slate-900/20">
                 <label className="flex items-center space-x-3 p-1.5 rounded hover:bg-slate-700/50 cursor-pointer sticky top-0 bg-[#252d41] z-10 shadow-sm">
                   <input type="checkbox" className="w-4 h-4 rounded border-slate-500 text-rose-500" checked={analysisItems.length === availableItems.length} onChange={selectAllItems} />
                   <span className="text-xs font-bold text-rose-400">전체 선택</span>
@@ -359,11 +428,19 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
             )}
           </div>
 
-          <div className="space-y-2 pt-2 pb-10">
+          <div className="space-y-2 pt-2">
             <div className="relative group">
               <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-500 group-focus-within:text-rose-500 transition-colors" />
-              <input type="text" value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="AAPL, NVDA, 005930..." className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all text-left" onKeyDown={(e) => e.key === 'Enter' && handleGeneratePrompt()} />
+              <input 
+                type="text" 
+                value={ticker} 
+                onChange={(e) => setTicker(e.target.value)} 
+                placeholder="AAPL, NVDA, 005930..." 
+                className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all text-left"
+                onKeyDown={(e) => e.key === 'Enter' && handleGeneratePrompt()} 
+              />
             </div>
+            <p className="text-[10px] text-slate-500 px-1 italic">미국주식(심볼), 한국주식(6자리 코드) 지원</p>
           </div>
         </div>
 
@@ -381,7 +458,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
           <div className="p-6 pt-0">
             <button onClick={handleGeneratePrompt} disabled={isGenerating} className={`w-full py-4 rounded-2xl font-black text-xs uppercase text-white shadow-2xl flex justify-center items-center space-x-2 transition-all active:scale-95 ${isGenerating ? 'bg-slate-700' : 'bg-gradient-to-br from-indigo-600 to-indigo-800'}`}>
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
-              <span>{isGenerating ? 'BUILDING V1.02' : 'Build Full Prompt'}</span>
+              <span>{isGenerating ? 'ANALYZING MARKET...' : 'Build Full Analysis'}</span>
             </button>
           </div>
         </div>
@@ -392,8 +469,10 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:40px_40px]"></div>
         
         <div className="relative h-full flex flex-col p-4 lg:p-12 overflow-y-auto custom-scrollbar text-left">
-          <div className="max-w-5xl mx-auto w-full pb-20">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 space-y-6 lg:space-y-0">
+          <div className="max-w-6xl mx-auto w-full pb-20 space-y-10">
+            
+            {/* Header Section */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between space-y-6 lg:space-y-0">
               <div className="flex items-start space-x-5">
                 <div className="bg-indigo-600/20 p-4 rounded-2xl border border-indigo-500/30">
                   <Cpu className="text-indigo-400 w-10 h-10" />
@@ -405,23 +484,33 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                     </h1>
                     <span className="text-sm font-normal text-slate-500 ml-4 not-italic font-mono">V1.02</span>
                   </div>
-                  <p className="text-slate-500 text-sm mt-3 font-medium uppercase tracking-widest text-left">Industry & Stock Full-Text Engine</p>
+                  <p className="text-slate-500 text-sm mt-3 font-medium uppercase tracking-widest text-left">Real-Time Data & Prompt Engine</p>
                 </div>
               </div>
             </div>
 
+            {/* TradingView Chart Section */}
+            <div className="animate-in fade-in zoom-in-95 duration-500">
+              <div className="flex items-center space-x-2 mb-4">
+                <Layout className="w-4 h-4 text-rose-500" />
+                <h2 className="text-sm font-black uppercase tracking-widest text-slate-300">Market Intelligence Chart</h2>
+              </div>
+              <TradingViewWidget symbol={activeSymbol} />
+            </div>
+
+            {/* Prompt Output Section */}
             {!generatedPrompt && !isGenerating && (
-              <div className="mt-16 lg:mt-24 flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+              <div className="mt-16 flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
                 <FileSearch className="text-slate-500 w-16 h-16" />
-                <h3 className="text-xl lg:text-2xl font-black text-white uppercase tracking-tighter text-left">Ready to Build V1.02 PRO Prompt</h3>
-                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed text-left">모든 상세 지침과 표 형식이 복원되었습니다. 버튼을 눌러 전문가용 분석 질문지를 생성하세요.</p>
+                <h3 className="text-xl lg:text-2xl font-black text-white uppercase tracking-tighter text-left">Market Sentiment Ready</h3>
+                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed text-left">차트 데이터를 확인하셨나요? 분석 지침서를 생성하여 월스트리트급 보고서를 완성하세요.</p>
               </div>
             )}
 
             {isGenerating && (
-              <div className="mt-24 flex flex-col items-center space-y-6">
+              <div className="mt-12 flex flex-col items-center space-y-6">
                 <Loader2 className="w-12 h-12 text-rose-500 animate-spin" />
-                <p className="text-slate-500 text-sm font-medium animate-pulse text-left">데이터 정렬 및 무삭제 풀텍스트 구성 중...</p>
+                <p className="text-slate-500 text-sm font-medium animate-pulse text-left">실시간 시장 데이터 동기화 및 보고서 설계 중...</p>
               </div>
             )}
 
@@ -430,8 +519,8 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                 <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-3xl p-6 flex items-start space-x-5 shadow-inner">
                   <Info className="text-indigo-400 w-6 h-6 flex-shrink-0" />
                   <div>
-                    <h4 className="text-white font-bold text-sm uppercase tracking-wide text-left">분석 지침서 생성 완료 (V1.02 무삭제)</h4>
-                    <p className="text-indigo-100/60 text-xs lg:text-sm leading-relaxed mt-1 text-left">사용자께서 주신 모든 표 형식($XX.XX), 가치평가 산출 로직, 검증 체크리스트가 풀텍스트로 포함되었습니다.</p>
+                    <h4 className="text-white font-bold text-sm uppercase tracking-wide text-left">AI Analyst Prompt Generated</h4>
+                    <p className="text-indigo-100/60 text-xs lg:text-sm leading-relaxed mt-1 text-left">상단 차트 정보와 선택한 분석 항목이 모두 포함된 전문가용 프롬프트입니다.</p>
                   </div>
                 </div>
 
@@ -463,8 +552,8 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
       </div>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
