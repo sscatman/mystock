@@ -25,11 +25,11 @@ import {
 } from 'lucide-react';
 
 /**
- * AI Hyper-Analyst GLOBAL V1.02 + Real-time Chart
+ * AI Hyper-Analyst GLOBAL V1.02 + Real-time Chart (Fixed for KR Stocks)
  * 업데이트 내역:
- * 1. TradingView 실시간 차트 위젯 통합
- * 2. 티커별 시장(KRX/US) 자동 매핑 로직 추가
- * 3. 차트 레이아웃 및 다크모드 테마 최적화
+ * 1. 한국 주식(KRX) 심볼 인식 및 ID 특수문자 오류 수정
+ * 2. 차트 컨테이너 초기화 로직 추가로 종목 전환 안정성 확보
+ * 3. KRX/US 시장 자동 판별 로직 고도화
  */
 
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
@@ -38,9 +38,8 @@ const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254
 const getTradingViewSymbol = (ticker) => {
   const cleanTicker = ticker.toUpperCase().trim();
   const isKOR = /^\d+$/.test(cleanTicker);
+  // 한국 주식은 KRX: 접두사가 필수입니다.
   if (isKOR) return `KRX:${cleanTicker}`;
-  
-  // 미국 주식의 경우 거래소 구분이 필요할 수 있으나 기본적으로 검색 기능을 활용하도록 설정
   return cleanTicker; 
 };
 
@@ -94,11 +93,17 @@ const TradingViewWidget = ({ symbol }) => {
   const container = useRef();
 
   useEffect(() => {
-    // 스크립트가 이미 존재하는지 확인
-    const existingScript = document.getElementById('tradingview-widget-script');
+    const scriptId = 'tradingview-widget-script';
+    let script = document.getElementById(scriptId);
     
     const createWidget = () => {
+      // 심볼에서 특수문자 제거하여 안전한 ID 생성 (예: KRX:005930 -> KRX_005930)
+      const safeId = `tv-chart-${symbol.replace(':', '_')}`;
+      
       if (container.current && window.TradingView) {
+        // 기존 차트 잔상을 제거하기 위해 내부 비움
+        container.current.innerHTML = `<div id="${safeId}" style="height: 100%; width: 100%;"></div>`;
+        
         new window.TradingView.widget({
           "autosize": true,
           "symbol": symbol,
@@ -111,7 +116,7 @@ const TradingViewWidget = ({ symbol }) => {
           "enable_publishing": false,
           "hide_side_toolbar": false,
           "allow_symbol_change": true,
-          "container_id": container.current.id,
+          "container_id": safeId,
           "studies": [
             "RSI@tv-basicstudies",
             "MASimple@tv-basicstudies"
@@ -120,9 +125,9 @@ const TradingViewWidget = ({ symbol }) => {
       }
     };
 
-    if (!existingScript) {
-      const script = document.createElement('script');
-      script.id = 'tradingview-widget-script';
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
       script.src = 'https://s3.tradingview.com/tv.js';
       script.async = true;
       script.onload = createWidget;
@@ -134,9 +139,9 @@ const TradingViewWidget = ({ symbol }) => {
 
   return (
     <div className="w-full h-[450px] bg-slate-900/50 rounded-3xl overflow-hidden border border-slate-700/50 shadow-2xl relative group">
-      <div id={`tv-chart-${symbol}`} ref={container} className="w-full h-full" />
+      <div ref={container} className="w-full h-full" />
       <div className="absolute top-4 left-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-        <span className="px-3 py-1 bg-rose-600 text-white text-[10px] font-black rounded-full shadow-lg uppercase">Live Analytics Mode</span>
+        <span className="px-3 py-1 bg-rose-600 text-white text-[10px] font-black rounded-full shadow-lg uppercase">Live Market Data</span>
       </div>
     </div>
   );
@@ -204,7 +209,7 @@ export default function App() {
     if (!ticker.trim()) return;
     setIsGenerating(true);
     
-    // 차트 업데이트를 위해 실제 트레이딩뷰 심볼로 변환 후 저장
+    // 차트 업데이트용 심볼 변환
     const tvSymbol = getTradingViewSymbol(ticker);
     setActiveSymbol(tvSymbol);
 
@@ -435,12 +440,12 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
                 type="text" 
                 value={ticker} 
                 onChange={(e) => setTicker(e.target.value)} 
-                placeholder="AAPL, NVDA, 005930..." 
+                placeholder="AAPL, 005930..." 
                 className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all text-left"
                 onKeyDown={(e) => e.key === 'Enter' && handleGeneratePrompt()} 
               />
             </div>
-            <p className="text-[10px] text-slate-500 px-1 italic">미국주식(심볼), 한국주식(6자리 코드) 지원</p>
+            <p className="text-[10px] text-slate-500 px-1 italic text-left">미국주식(NVDA), 한국주식(000660) 지원</p>
           </div>
         </div>
 
@@ -493,7 +498,7 @@ ${analysisItems.map(item => `- ${item}`).join('\n')}
             <div className="animate-in fade-in zoom-in-95 duration-500">
               <div className="flex items-center space-x-2 mb-4">
                 <Layout className="w-4 h-4 text-rose-500" />
-                <h2 className="text-sm font-black uppercase tracking-widest text-slate-300">Market Intelligence Chart</h2>
+                <h2 className="text-sm font-black uppercase tracking-widest text-slate-300">Live Market Intelligence Chart</h2>
               </div>
               <TradingViewWidget symbol={activeSymbol} />
             </div>
