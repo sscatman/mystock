@@ -30,10 +30,10 @@ import {
 
 /**
  * AI Hyper-Analyst GLOBAL V1.16 ULTRA-STRICT (RAW SOURCE)
- * 업데이트 내역 (1.15 -> 1.16):
- * 1. 요약 원천 차단: 모든 프롬프트 템플릿을 사용자 제공 원문(Raw Text)으로 100% 대체
- * 2. 지침 강제 박제: '필수 준수 사항', '가치평가 공식', '거시경제 5개항' 등 모든 텍스트를 무삭제 반영
- * 3. 분석 레벨 및 투자 관점 상태 유지 로직 최적화
+ * 모바일 최적화 패치 적용:
+ * 1. 모바일 뷰어(가로 1024px 이하)에서 사이드바 토글(닫기/열기) UI 추가
+ * 2. 종목 검색 성공 시 모바일 환경에서는 자동으로 사이드바 숨김 처리
+ * 3. 엔터키(Enter) 입력 시 즉시 검색 실행 로직 추가
  */
 
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
@@ -71,45 +71,65 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
+  
+  // 모바일에서 사이드바 기본 열림 상태
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // 자동 종목 검색 및 프롬프트 갱신
-  useEffect(() => {
-    const autoGenerate = setTimeout(async () => {
-      const cleanInput = ticker.trim();
-      if (cleanInput.length >= 2) {
-        setIsSearching(true);
-        try {
-          const isNum = /^\d+$/.test(cleanInput);
-          const queryParam = isNum ? `likeSrtnCd=${cleanInput}` : `itmsNm=${encodeURIComponent(cleanInput)}`;
-          const url = `https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo?serviceKey=${publicDataApiKey}&resultType=json&${queryParam}&numOfRows=1`;
-          
-          const response = await fetch(url);
-          const data = await response.json();
-          const item = data?.response?.body?.items?.item?.[0];
-          
-          if (item) {
-            const stockInfo = {
-              name: item.itmsNm,
-              code: item.srtnCd,
-              market: item.mrktCtg,
-              price: item.clpr,
-              change: item.vs,
-              changeRate: item.fltRt
-            };
-            setActiveStockData(stockInfo);
-            generatePromptContent(stockInfo, reportType);
-          }
-        } catch (error) {
-          console.error("Auto-fetch error", error);
-        } finally {
-          setIsSearching(false);
+  // 수동 검색 함수 (엔터키 용)
+  const handleSearch = async () => {
+    const cleanInput = ticker.trim();
+    if (cleanInput.length < 2) return;
+    
+    setIsSearching(true);
+    try {
+      const isNum = /^\d+$/.test(cleanInput);
+      const queryParam = isNum ? `likeSrtnCd=${cleanInput}` : `itmsNm=${encodeURIComponent(cleanInput)}`;
+      const url = `https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo?serviceKey=${publicDataApiKey}&resultType=json&${queryParam}&numOfRows=1`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      const item = data?.response?.body?.items?.item?.[0];
+      
+      if (item) {
+        const stockInfo = {
+          name: item.itmsNm,
+          code: item.srtnCd,
+          market: item.mrktCtg,
+          price: item.clpr,
+          change: item.vs,
+          changeRate: item.fltRt
+        };
+        setActiveStockData(stockInfo);
+        generatePromptContent(stockInfo, reportType);
+        
+        // 모바일 화면일 경우 검색 성공 시 사이드바 닫기
+        if (window.innerWidth < 1024) {
+          setIsSidebarOpen(false);
         }
+      }
+    } catch (error) {
+      console.error("Fetch error", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // 자동 종목 검색
+  useEffect(() => {
+    const autoGenerate = setTimeout(() => {
+      if (ticker.trim().length >= 2) {
+        handleSearch();
       }
     }, 1200); 
 
     return () => clearTimeout(autoGenerate);
   }, [ticker, useMacro, reportType, analysisItems]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   const generatePromptContent = (stockInfo, type = 'MAIN') => {
     setIsGenerating(true);
@@ -121,7 +141,6 @@ export default function App() {
     let fullPrompt = "";
 
     if (type === 'MAIN') {
-      // --- V1.16 MAIN 분석 (사용자 제공 원문 100% 반영) ---
       fullPrompt = `
 [역할] 월스트리트 수석 애널리스트
 [대상] ${stockName} (공식 기업명: ${stockName})
@@ -368,16 +387,39 @@ ${useMacro ? `
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#070b14] font-sans text-slate-200 overflow-hidden text-left">
       
+      {/* 모바일 햄버거 메뉴 (사이드바가 닫혀있을 때만 표시) */}
+      <div className="lg:hidden p-4 flex justify-between items-center border-b border-slate-800 bg-[#111827]">
+        <div className="flex items-center space-x-2">
+          <Cpu className="text-rose-500 w-6 h-6" />
+          <span className="font-black text-white italic">Hyper-Analyst</span>
+        </div>
+        <button 
+          onClick={() => setIsSidebarOpen(true)} 
+          className="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800/50"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
       {/* Sidebar */}
-      <div className={`fixed inset-0 lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out z-20 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-full lg:w-80 bg-[#111827] border-r border-slate-800 flex flex-col h-full shadow-2xl`}>
-        <div className="flex p-6 border-b border-slate-800 items-center space-x-3 bg-[#111827]">
-          <div className="bg-rose-500/20 p-2 rounded-lg">
-            <TrendingUp className="text-rose-500 w-6 h-6" />
+      <div className={`fixed inset-0 lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out z-50 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-full lg:w-80 bg-[#111827] border-r border-slate-800 flex flex-col h-full shadow-2xl`}>
+        <div className="flex p-6 border-b border-slate-800 items-center justify-between bg-[#111827]">
+          <div className="flex items-center space-x-3">
+            <div className="bg-rose-500/20 p-2 rounded-lg">
+              <TrendingUp className="text-rose-500 w-6 h-6" />
+            </div>
+            <div className="flex flex-col text-left">
+              <h1 className="text-lg font-black text-white italic leading-tight">Hyper-Analyst</h1>
+              <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.16 RAW SOURCE</span>
+            </div>
           </div>
-          <div className="flex flex-col text-left">
-            <h1 className="text-lg font-black text-white italic leading-tight">Hyper-Analyst</h1>
-            <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.16 RAW SOURCE</span>
-          </div>
+          {/* 모바일 닫기 버튼 */}
+          <button 
+            onClick={() => setIsSidebarOpen(false)} 
+            className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
         
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-left">
@@ -435,15 +477,22 @@ ${useMacro ? `
           <div className="space-y-4 pt-2">
             <div className="relative group">
               <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-500 group-focus-within:text-rose-500 transition-colors" />
-              <input type="text" value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="기업명 입력 (예: 아이온큐)" className="w-full pl-10 pr-4 py-3.5 bg-[#070b14] border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none text-left transition-all" />
+              <input 
+                type="text" 
+                value={ticker} 
+                onChange={(e) => setTicker(e.target.value)} 
+                onKeyDown={handleKeyDown}
+                placeholder="기업명 입력 (예: 삼성전자)" 
+                className="w-full pl-10 pr-4 py-3.5 bg-[#070b14] border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none text-left transition-all" 
+              />
             </div>
           </div>
         </div>
 
         <div className="p-6 bg-[#111827] border-t border-slate-800">
-           <button onClick={() => ticker && generatePromptContent(activeStockData, reportType)} className="w-full py-4 rounded-2xl font-black text-xs uppercase text-white shadow-2xl flex justify-center items-center space-x-2 bg-gradient-to-r from-rose-600 to-rose-800 hover:from-rose-500 hover:to-rose-700 active:scale-95 transition-all">
+           <button onClick={() => { handleSearch(); }} className="w-full py-4 rounded-2xl font-black text-xs uppercase text-white shadow-2xl flex justify-center items-center space-x-2 bg-gradient-to-r from-rose-600 to-rose-800 hover:from-rose-500 hover:to-rose-700 active:scale-95 transition-all">
             <Terminal className="w-4 h-4" />
-            <span>프롬프트 재생성</span>
+            <span>프롬프트 생성 / 적용</span>
           </button>
         </div>
       </div>
@@ -455,7 +504,7 @@ ${useMacro ? `
           <div className="max-w-4xl mx-auto w-full pb-20 space-y-12">
             
             <div className="flex items-start space-x-6 text-left">
-              <div className="bg-rose-500/10 p-5 rounded-3xl border border-rose-500/20 shadow-[0_0_30px_rgba(244,63,94,0.1)]">
+              <div className="hidden lg:flex bg-rose-500/10 p-5 rounded-3xl border border-rose-500/20 shadow-[0_0_30px_rgba(244,63,94,0.1)]">
                 <Cpu className="text-rose-500 w-12 h-12" />
               </div>
               <div>
@@ -463,10 +512,10 @@ ${useMacro ? `
                   <h1 className="text-3xl lg:text-5xl font-black tracking-tighter text-white italic uppercase leading-none">
                     Hyper Analyst <span className="text-indigo-500 underline decoration-rose-500 decoration-8 underline-offset-[12px]">GLOBAL</span>
                   </h1>
-                  <span className="text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.16</span>
+                  <span className="hidden md:inline-block text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.16</span>
                 </div>
-                <p className="text-slate-500 text-sm mt-5 font-bold uppercase tracking-[0.3em] flex items-center">
-                  <Database className="w-4 h-4 mr-2 text-indigo-500" /> NO SUMMARY - RAW INSTRUCTION PROTOCOL
+                <p className="text-slate-500 text-xs lg:text-sm mt-5 font-bold uppercase tracking-[0.2em] lg:tracking-[0.3em] flex items-center">
+                  <Database className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" /> NO SUMMARY - RAW INSTRUCTION PROTOCOL
                 </p>
               </div>
             </div>
@@ -476,7 +525,7 @@ ${useMacro ? `
                 <Loader2 className="w-16 h-16 text-rose-500 animate-spin relative z-10" />
                 <div className="text-center space-y-2">
                   <p className="text-white font-black uppercase tracking-widest text-lg">Exporting Raw Text...</p>
-                  <p className="text-slate-500 text-sm font-medium italic">사용자 지침 원문 데이터를 그대로 복원하고 있습니다.</p>
+                  <p className="text-slate-500 text-sm font-medium italic">데이터를 수집하고 프롬프트를 복원 중입니다.</p>
                 </div>
               </div>
             ) : generatedPrompt ? (
@@ -496,22 +545,22 @@ ${useMacro ? `
                 <div className="relative group text-left">
                   <div className="absolute -inset-1 bg-gradient-to-br from-rose-600 to-indigo-600 rounded-[2.5rem] blur opacity-20"></div>
                   <div className="relative bg-[#0d1326] border border-slate-800 rounded-[2rem] overflow-hidden">
-                    <div className="flex items-center justify-between px-8 py-6 border-b border-slate-800 bg-slate-900/50">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 lg:px-8 py-6 border-b border-slate-800 bg-slate-900/50 space-y-4 sm:space-y-0">
                       <div className="flex items-center space-x-3">
                         <FileText className="w-4 h-4 text-rose-500" />
-                        <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.3em]">RAW SOURCE OUTPUT</span>
+                        <span className="text-[11px] text-slate-400 font-mono font-black uppercase tracking-[0.2em] lg:tracking-[0.3em]">RAW SOURCE OUTPUT</span>
                       </div>
-                      <button onClick={copyToClipboard} className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-[11px] font-black uppercase transition-all ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}>
+                      <button onClick={copyToClipboard} className={`w-full sm:w-auto flex justify-center items-center space-x-2 px-6 py-2.5 rounded-xl text-[11px] font-black uppercase transition-all ${copySuccess ? 'bg-emerald-600 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}>
                         {copySuccess ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copySuccess ? 'Copied' : 'Copy Full Text'}</span>
                       </button>
                     </div>
-                    <div className="p-8 lg:p-12 max-h-[60vh] overflow-y-auto custom-scrollbar font-mono text-[13px] lg:text-[15px] leading-[1.8] text-slate-300 whitespace-pre-wrap bg-[#080d1a]/80 text-left selection:bg-rose-500/40">
+                    <div className="p-6 lg:p-12 max-h-[50vh] lg:max-h-[60vh] overflow-y-auto custom-scrollbar font-mono text-[12px] lg:text-[14px] leading-[1.8] text-slate-300 whitespace-pre-wrap bg-[#080d1a]/80 text-left selection:bg-rose-500/40 break-words">
                       {generatedPrompt}
                     </div>
-                    <div className="p-8 bg-[#0a1122] border-t border-slate-800">
-                      <button onClick={() => { copyToClipboard(); window.open('https://gemini.google.com/app', '_blank'); }} className="w-full py-6 bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white rounded-2xl font-black text-sm lg:text-base shadow-2xl flex justify-center items-center space-x-4 transition-all transform hover:scale-[1.01]">
-                        <ExternalLink className="w-6 h-6" />
+                    <div className="p-6 lg:p-8 bg-[#0a1122] border-t border-slate-800">
+                      <button onClick={() => { copyToClipboard(); window.open('https://gemini.google.com/app', '_blank'); }} className="w-full py-5 lg:py-6 bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white rounded-2xl font-black text-sm lg:text-base shadow-2xl flex justify-center items-center space-x-4 transition-all transform hover:scale-[1.01]">
+                        <ExternalLink className="w-5 h-5 lg:w-6 lg:h-6" />
                         <span>복사 후 제미나이(Gemini)로 이동</span>
                       </button>
                     </div>
@@ -519,16 +568,17 @@ ${useMacro ? `
                 </div>
               </div>
             ) : (
-              <div className="mt-32 flex flex-col items-center justify-center text-center space-y-10">
+              <div className="mt-16 lg:mt-32 flex flex-col items-center justify-center text-center space-y-10">
                 <div className="p-8 bg-slate-900/50 rounded-full border border-slate-800 relative">
                    <div className="absolute inset-0 bg-rose-500/5 blur-3xl rounded-full"></div>
-                   <FileSearch className="text-slate-600 w-20 h-20 relative z-10" />
+                   <FileSearch className="text-slate-600 w-16 h-16 lg:w-20 lg:h-20 relative z-10" />
                 </div>
-                <div className="space-y-4">
-                  <h3 className="text-2xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.16 RAW SOURCE ENGINE</h3>
-                  <p className="text-slate-600 text-sm max-w-md mx-auto leading-relaxed font-medium">
+                <div className="space-y-4 px-4">
+                  <h3 className="text-xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.16 RAW SOURCE ENGINE</h3>
+                  <p className="text-slate-600 text-xs lg:text-sm max-w-md mx-auto leading-relaxed font-medium">
                     사용자님의 모든 지침 원문을 <span className="text-rose-500 font-bold">100% 무삭제 복원</span>하여<br/>
-                    프롬프트로 출력하는 울트라 스트릭트 시스템입니다.
+                    프롬프트로 출력하는 울트라 스트릭트 시스템입니다.<br/><br/>
+                    <span className="text-indigo-400">메뉴 버튼(≡)을 눌러 종목 검색을 시작하세요.</span>
                   </p>
                 </div>
               </div>
