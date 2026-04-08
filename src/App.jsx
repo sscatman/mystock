@@ -46,13 +46,72 @@ const availableItems = [
   '단기/중기 매매 전략'
 ];
 
+// 다크 테마에 맞춘 커스텀 슬라이더 컴포넌트
+const CustomSlider = ({ min, max, value, onChange, labels }) => {
+  const percent = ((value - min) / (max - min)) * 100;
+
+  return (
+    <div className="relative mt-7 mb-5 mx-2">
+      {/* 현재 값 레이블 (상단에 툴팁처럼 표시) */}
+      <div
+        className="absolute bottom-full mb-1.5 text-[11px] text-rose-500 whitespace-nowrap z-20 pointer-events-none font-bold tracking-tight"
+        style={{
+          left: `${percent}%`,
+          transform: 'translateX(-50%)',
+          transition: 'left 0.2s ease-out'
+        }}
+      >
+        {labels[value]}
+      </div>
+
+      {/* 슬라이더 트랙 영역 */}
+      <div className="relative w-full h-5 flex items-center group">
+        {/* 배경 회색 트랙 */}
+        <div className="absolute w-full h-1 bg-slate-700 rounded-full" />
+        {/* 채워진 빨간색 트랙 */}
+        <div
+          className="absolute h-1 bg-rose-500 rounded-full pointer-events-none"
+          style={{ width: `${percent}%`, transition: 'width 0.2s ease-out' }}
+        />
+        {/* 빨간색 핸들 */}
+        <div
+          className="absolute w-3.5 h-3.5 bg-rose-500 rounded-full pointer-events-none z-10"
+          style={{
+            left: `${percent}%`,
+            transform: 'translateX(-50%)',
+            transition: 'left 0.2s ease-out',
+            boxShadow: '0 0 0 4px rgba(244, 63, 94, 0.2)'
+          }}
+        />
+        {/* 실제 입력을 받는 투명한 range input */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step="1"
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0"
+        />
+      </div>
+
+      {/* 양쪽 끝 레이블 */}
+      <div className="flex justify-between mt-1 text-[9px] font-medium text-slate-500">
+        <span>{labels[min]}</span>
+        <span>{labels[max]}</span>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [ticker, setTicker] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [activeStockData, setActiveStockData] = useState(null);
   
-  const [term, setTerm] = useState('중기 (6개월~1년)');
-  const [level, setLevel] = useState('5.시나리오');
+  // 상태 관리를 문자열에서 인덱스 기반으로 변경 (슬라이더 대응)
+  const [termIndex, setTermIndex] = useState(1); // 0: 단기, 1: 중기, 2: 장기
+  const [levelIndex, setLevelIndex] = useState(4); // 0~4 단계
   const [analysisItems, setAnalysisItems] = useState(availableItems);
   
   const [useNews, setUseNews] = useState(true);
@@ -65,6 +124,21 @@ export default function App() {
   const [copySuccess, setCopySuccess] = useState(false);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // 슬라이더 레이블 정의
+  const periodLabels = {
+    0: "단기 (1주-1개월)",
+    1: "중기 (6개월-1년)",
+    2: "장기 (1-3년)"
+  };
+
+  const scenarioLabels = {
+    0: "1.요약",
+    1: "2.기본",
+    2: "3.상세",
+    3: "4.심층",
+    4: "5.시나리오"
+  };
 
   const handleSearch = async (isManual = false) => {
     const cleanInput = ticker.trim();
@@ -107,7 +181,7 @@ export default function App() {
         currentStockInfo.changeRate = item.fltRt;
         symbolForYahoo = item.mrktCtg === 'KOSPI' ? `${item.srtnCd}.KS` : `${item.srtnCd}.KQ`;
       } else {
-        // 2단계: 야후 파이낸스 검색 API (ETF 및 해외주식)
+        // 2단계: 야후 파이낸스 검색 API
         const searchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v1/finance/search?q=${cleanInput}`)}`;
         const searchRes = await fetch(searchUrl);
         const searchData = await searchRes.json();
@@ -135,10 +209,9 @@ export default function App() {
         }
       }
 
-      // 3단계: 야후 파이낸스 심층 데이터(재무제표 및 뉴스) 수집
+      // 3단계: 야후 파이낸스 심층 데이터 수집
       if (symbolForYahoo) {
         try {
-          // 재무 지표 추출
           const summaryUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${symbolForYahoo}?modules=financialData,defaultKeyStatistics,summaryDetail`)}`;
           const summaryRes = await fetch(summaryUrl);
           const summaryData = await summaryRes.json();
@@ -174,16 +247,17 @@ export default function App() {
             };
           }
 
-          // 뉴스 기사 추출
-          const newsSearchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v1/finance/search?q=${symbolForYahoo}`)}`;
-          const newsRes = await fetch(newsSearchUrl);
-          const newsData = await newsRes.json();
-          if (newsData?.news && newsData.news.length > 0) {
-            currentStockInfo.news = newsData.news.slice(0, 10).map(n => {
-              const date = new Date(n.providerPublishTime * 1000);
-              const dateStr = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-              return `- [News] ${n.title} - ${n.publisher || 'Web'} (${dateStr})`;
-            });
+          if (useNews) {
+            const newsSearchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v1/finance/search?q=${symbolForYahoo}`)}`;
+            const newsRes = await fetch(newsSearchUrl);
+            const newsData = await newsRes.json();
+            if (newsData?.news && newsData.news.length > 0) {
+              currentStockInfo.news = newsData.news.slice(0, 10).map(n => {
+                const date = new Date(n.providerPublishTime * 1000);
+                const dateStr = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                return `- [News] ${n.title} - ${n.publisher || 'Web'} (${dateStr})`;
+              });
+            }
           }
         } catch (e) {
           console.error("Detail Fetch Error", e);
@@ -199,6 +273,7 @@ export default function App() {
     }
   };
 
+  // 슬라이더 값이 변경될 때마다 자동 생성 재시작
   useEffect(() => {
     const autoGenerate = setTimeout(() => {
       if (ticker.trim().length >= 2) {
@@ -207,7 +282,7 @@ export default function App() {
     }, 1200); 
 
     return () => clearTimeout(autoGenerate);
-  }, [ticker, reportType, analysisItems]);
+  }, [ticker, reportType, analysisItems, termIndex, levelIndex, useNews, useMacro]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -223,6 +298,10 @@ export default function App() {
     const stockCode = stockInfo?.code || ticker;
     const isKOR = /^\d+$/.test(stockCode) || (stockInfo && stockInfo.market && (stockInfo.market.includes('KOSPI') || stockInfo.market.includes('KOSDAQ')));
     const currencySym = isKOR ? "₩" : "$";
+    
+    // 슬라이더 인덱스를 텍스트로 변환
+    const selectedTerm = periodLabels[termIndex];
+    const selectedLevel = scenarioLabels[levelIndex];
 
     const priceText = stockInfo && stockInfo.price !== 'N/A' 
       ? `- 현재가: ${Number(stockInfo.price).toLocaleString()} ${isKOR ? 'KRW' : 'USD'} / 전일대비: ${stockInfo.change > 0 ? '+' : ''}${stockInfo.change} (${stockInfo.changeRate}%)` 
@@ -233,7 +312,7 @@ export default function App() {
 
     const newsString = stockInfo?.news && stockInfo.news.length > 0 
       ? stockInfo.news.join('\n') 
-      : "(이 섹션에서 실시간 뉴스를 수집하십시오. 형식: [Google News] 제목 - 출처 (날짜))";
+      : (useNews ? "(이 섹션에서 실시간 뉴스를 수집하십시오. 형식: [Google News] 제목 - 출처 (날짜))" : "(사용자 요청에 의해 뉴스 분석 생략)");
 
     let fullPrompt = "";
 
@@ -242,11 +321,11 @@ export default function App() {
 [역할] 월스트리트 수석 애널리스트
 [대상] ${stockName} (공식 기업명: ${stockName})
 [모드] MAIN
-[중점 분석] 현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략
-[투자 관점] ${term}
-[분석 레벨] 5.시나리오
+[중점 분석] ${analysisItems.join(', ')}
+[투자 관점] ${selectedTerm}
+[분석 레벨] ${selectedLevel}
 **주의: '${stockName}'는 '${stockName}'입니다. 다른 기업과 혼동하지 마십시오.**
-이 분석은 '시나리오 모드'입니다. 미래 불확실성을 고려하여 확률적 접근이 필수적입니다.
+이 분석은 '${selectedLevel}' 모드입니다. ${selectedLevel === '5.시나리오' ? '미래 불확실성을 고려하여 확률적 접근이 필수적입니다.' : ''}
  
 [데이터 요약]
 ${priceText}
@@ -272,7 +351,7 @@ ${newsString}
 3. **구조화된 출력**: 각 분석 항목은 별도의 섹션 헤더(##)로 구분하십시오.
    - 항목 간 명확한 시각적 구분이 필요합니다.
 
-4. **체크리스트 확인**: 분석 완료 후, 선택된 모든 항목(현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략)이 포함되었는지 **스스로 검증**하십시오.
+4. **체크리스트 확인**: 분석 완료 후, 선택된 모든 항목(${analysisItems.join(', ')})이 포함되었는지 **스스로 검증**하십시오.
    - 누락된 항목이 있다면 반드시 추가 작성하십시오.
 
 ---
@@ -297,7 +376,7 @@ ${newsString}
 
 2. **[사용자 선택 중점 분석 항목 상세]**
    ⚠️ **아래 리스트의 모든 항목을 개별 섹션으로 상세 분석하십시오. 절대 생략 금지!**
-   - 선택된 항목 목록: 현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략
+   - 선택된 항목 목록: ${analysisItems.join(', ')}
    - **각 항목별로 ## 헤더를 사용하여 별도 섹션으로 작성**하십시오.
    - 각 항목당 최소 3개 이상의 구체적 분석 포인트를 포함하십시오.
 
@@ -393,7 +472,7 @@ ${useMacro ? `
 
 ⚠️ **[최종 검증 - 작성 완료 전 확인]**
 아래 항목들이 모두 분석에 포함되었는지 확인하십시오:
-- 선택된 중점 분석 항목: 현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략
+- 선택된 중점 분석 항목: ${analysisItems.join(', ')}
 - 누락된 항목이 있다면 반드시 추가 작성 후 응답을 완료하십시오.
 - 각 항목이 충분한 깊이(최소 3개 포인트)로 분석되었는지 확인하십시오.
 `.trim();
@@ -437,7 +516,7 @@ ${useMacro ? `
         </button>
       </div>
 
-      <div className={`fixed inset-0 lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out z-50 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-full lg:w-80 bg-[#111827] border-r border-slate-800 flex flex-col h-full shadow-2xl`}>
+      <div className={`fixed inset-0 lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out z-50 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-full lg:w-[340px] bg-[#111827] border-r border-slate-800 flex flex-col h-full shadow-2xl`}>
         <div className="flex p-6 border-b border-slate-800 items-center justify-between bg-[#111827]">
           <div className="flex items-center space-x-3">
             <div className="bg-rose-500/20 p-2 rounded-lg">
@@ -455,9 +534,31 @@ ${useMacro ? `
         
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-left">
           
-          {/* 복구 완료: 1. 분석 옵션 (뉴스, 거시경제) */}
+          {/* 복구 완료: 1. 분석 옵션 (기간/레벨 슬라이더 + 뉴스, 거시경제) */}
           <div className="space-y-4">
             <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-widest">분석 옵션</h3>
+            
+            <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
+              {/* 기간 설정 슬라이더 */}
+              <CustomSlider
+                min={0}
+                max={2}
+                value={termIndex}
+                onChange={setTermIndex}
+                labels={periodLabels}
+              />
+              
+              <div className="h-px w-full bg-slate-700/50 my-5" />
+              
+              {/* 시나리오 수준 설정 슬라이더 */}
+              <CustomSlider
+                min={0}
+                max={4}
+                value={levelIndex}
+                onChange={setLevelIndex}
+                labels={scenarioLabels}
+              />
+            </div>
             
             <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => setUseNews(!useNews)}>
                <div className="flex items-center space-x-3">
