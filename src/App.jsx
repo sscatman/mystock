@@ -349,6 +349,39 @@ ${newsString}
    - 각 시나리오별 **예상 주가 밴드**와 **실현 확률(%)**을 명시적으로 제시하십시오.
    - 왜 그러한 확률이 배정되었는지에 대한 **논리적/정량적 근거**를 상세히 설명하십시오.
 
+${useMacro ? `
+**[🌍 거시경제 및 지정학적 분석 - 필수 포함]**
+이 분석은 거시경제 및 지정학적 관점을 반드시 포함해야 합니다. 아래 항목을 심층 분석하십시오:
+
+1. **통화정책 및 금리 영향**
+   - 연준(Fed) 금리 정책이 해당 기업/섹터에 미치는 영향
+   - 금리 인상/인하 시나리오별 주가 영향
+   - 달러 강세/약세에 따른 수출입 영향
+
+2. **지정학적 리스크**
+   - 미중 무역분쟁, 관세 정책이 해당 기업에 미치는 영향
+   - 전쟁, 지역 분쟁(우크라이나, 중동 등)의 공급망 영향
+   - 글로벌 제재, 수출 규제 관련 리스크
+   - 핵심 원자재(반도체, 희토류 등) 공급망 의존도
+
+3. **거시경제 사이클**
+   - 현재 경기 사이클 위치 (확장, 정점, 수축, 저점)
+   - 경기침체(Recession) 가능성과 해당 기업의 방어력
+   - 인플레이션/디플레이션 환경에서의 가격 전가력
+
+4. **글로벌 정책 변화**
+   - ESG/탄소중립 정책이 해당 섹터에 미치는 중장기 영향
+   - AI 규제, 데이터 보호법 등 기술 규제 영향
+   - 정부 보조금, 세제 혜택 변화
+
+5. **환율 및 국제 자금 흐름**
+   - 원/달러 환율 변동이 수익에 미치는 영향
+   - 신흥국 자금 이탈/유입 트렌드
+   - 외국인 투자자 동향과 거시경제 연관성
+
+**출력 시 별도 섹션으로 "🌍 거시경제/지정학 분석" 항목을 반드시 포함하십시오.**
+` : ''}
+
 [출력 형식]
 - 보고서는 가독성 있게 마크다운 형식으로 작성하십시오.
 - **모든 답변은 반드시 '한글'로 작성하십시오.** (전문 용어는 괄호 안에 영문 병기)
@@ -412,7 +445,7 @@ ${newsString}
             </div>
             <div className="flex flex-col text-left">
               <h1 className="text-lg font-black text-white italic leading-tight">Hyper-Analyst</h1>
-              <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.19 DATA-RICH</span>
+              <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.18 DATA ENRICHMENT</span>
             </div>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
@@ -421,8 +454,11 @@ ${newsString}
         </div>
         
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-left">
+          
+          {/* 복구 완료: 1. 분석 옵션 (뉴스, 거시경제) */}
           <div className="space-y-4">
             <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-widest">분석 옵션</h3>
+            
             <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => setUseNews(!useNews)}>
                <div className="flex items-center space-x-3">
                 <Newspaper className="w-4 h-4 text-slate-400" />
@@ -432,6 +468,46 @@ ${newsString}
                 <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useNews ? 'left-[18px]' : 'left-[2px]'}`}></div>
               </div>
             </div>
+
+            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => setUseMacro(!useMacro)}>
+               <div className="flex items-center space-x-3">
+                <Globe2 className="w-4 h-4 text-rose-500" />
+                <span className="text-xs font-bold text-slate-300">거시경제/지정학 분석</span>
+              </div>
+              <div className={`w-8 h-4 rounded-full relative transition-colors ${useMacro ? 'bg-rose-500' : 'bg-slate-700'}`}>
+                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useMacro ? 'left-[18px]' : 'left-[2px]'}`}></div>
+              </div>
+            </div>
+          </div>
+
+          {/* 복구 완료: 2. 포트폴리오 공시 분석 버튼 */}
+          <div className="space-y-3">
+             <h3 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">포트폴리오 공시 분석</h3>
+             <div className="grid grid-cols-2 gap-2">
+                {['10-K', '10-Q', '8-K', 'MAIN'].map(type => (
+                  <button key={type} onClick={() => setReportType(type)} className={`p-2 rounded-lg border text-[11px] font-bold transition-all ${reportType === type ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'}`}>
+                    {type === 'MAIN' ? '종합 분석' : type}
+                  </button>
+                ))}
+             </div>
+          </div>
+
+          {/* 복구 완료: 3. 중점 분석 항목(STRICT) 체크박스 리스트 */}
+          <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-800/50">
+            <button onClick={() => setIsFocusMenuOpen(!isFocusMenuOpen)} className="w-full p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+              <span className="text-xs font-black text-slate-400 uppercase tracking-wider">중점 분석 항목 (STRICT)</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${isFocusMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isFocusMenuOpen && (
+              <div className="p-3 pt-0 space-y-1.5 max-h-[25vh] overflow-y-auto custom-scrollbar bg-slate-900/20 text-left">
+                {availableItems.map((item, idx) => (
+                  <label key={idx} className="flex items-start space-x-3 p-1.5 rounded hover:bg-slate-800/50 cursor-pointer transition-colors">
+                    <input type="checkbox" className="mt-0.5 w-3.5 h-3.5 rounded border-slate-600 text-indigo-500" checked={analysisItems.includes(item)} onChange={() => setAnalysisItems(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item])} />
+                    <span className="text-[11px] text-slate-400 leading-snug">{item}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-4 pt-2">
@@ -471,7 +547,7 @@ ${newsString}
                   <h1 className="text-3xl lg:text-5xl font-black tracking-tighter text-white italic uppercase leading-none">
                     Hyper Analyst <span className="text-indigo-500 underline decoration-rose-500 decoration-8 underline-offset-[12px]">GLOBAL</span>
                   </h1>
-                  <span className="hidden md:inline-block text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.19</span>
+                  <span className="hidden md:inline-block text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.18</span>
                 </div>
                 <p className="text-slate-500 text-xs lg:text-sm mt-5 font-bold uppercase tracking-[0.2em] lg:tracking-[0.3em] flex items-center">
                   <Database className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" /> DATA-RICH RAW PROTOCOL
@@ -533,11 +609,11 @@ ${newsString}
                    <FileSearch className="text-slate-600 w-16 h-16 lg:w-20 lg:h-20 relative z-10" />
                 </div>
                 <div className="space-y-4 px-4">
-                  <h3 className="text-xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.19 DATA ENRICHMENT</h3>
+                  <h3 className="text-xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.18 DATA ENRICHMENT</h3>
                   <p className="text-slate-600 text-xs lg:text-sm max-w-md mx-auto leading-relaxed font-medium">
                     사용자님의 모든 지침 원문을 <span className="text-rose-500 font-bold">100% 무삭제 복원</span>하며,<br/>
                     야후 데이터를 통해 재무/뉴스 N/A 오류를 해결합니다.<br/><br/>
-                    <span className="text-indigo-400">메뉴 버튼(≡)을 눌러 테슬라(TSLA) 검색을 시작하세요.</span>
+                    <span className="text-indigo-400">메뉴 버튼(≡)을 눌러 종목 검색을 시작하세요.</span>
                   </p>
                 </div>
               </div>
