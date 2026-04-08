@@ -28,15 +28,6 @@ import {
   Newspaper
 } from 'lucide-react';
 
-/**
- * AI Hyper-Analyst GLOBAL V1.17 DUAL-API (KEY-FREE EDITION)
- * 업데이트 내역:
- * 1. Yahoo Finance API 키 완전 제거 (무료 Public 엔드포인트 활용)
- * 2. CORS 프록시(allorigins) 우회를 통한 브라우저(JS) 환경 야후 데이터 로드
- * 3. KODEX 등 ETF 및 해외주식 실시간 가격/티커 자동 매핑
- */
-
-// 한국 공공데이터 API 키 (국내 개별 주식 1차 검색용)
 const publicDataApiKey = "885853dbc6a25a93e403ee31fa9e124778e4943b8911869ea2f254ec5d75f99b";
 
 const availableItems = [
@@ -50,7 +41,7 @@ const availableItems = [
   '경쟁사 비교 및 업황',
   'P/E Ratio (P/E TTM, Forward P/E)',
   'Intrinsic Value, DCF Value',
-  '베타(β), WACC (가중평균자본비용) 분석',
+  '베타(β)', 'WACC (가중평균자본비용) 분석',
   '투자성향별 포트폴리오 적정보유비중',
   '단기/중기 매매 전략'
 ];
@@ -60,7 +51,7 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [activeStockData, setActiveStockData] = useState(null);
   
-  const [term, setTerm] = useState('단기 (1주~1개월)');
+  const [term, setTerm] = useState('중기 (6개월~1년)');
   const [level, setLevel] = useState('5.시나리오');
   const [analysisItems, setAnalysisItems] = useState(availableItems);
   
@@ -75,21 +66,30 @@ export default function App() {
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // 수동 검색 함수 (Dual API 적용 - API Key Free)
   const handleSearch = async (isManual = false) => {
     const cleanInput = ticker.trim();
     if (cleanInput.length < 2) return;
     
-    // 모바일에서 직접 검색 시 사이드바 닫기
     if (isManual && window.innerWidth < 1024) {
       setIsSidebarOpen(false);
     }
 
     setIsSearching(true);
-    let currentStockInfo = null;
+    let currentStockInfo = {
+      name: cleanInput,
+      code: cleanInput,
+      market: 'N/A',
+      price: 'N/A',
+      change: '0',
+      changeRate: '0',
+      financials: null,
+      news: null
+    };
+    
+    let symbolForYahoo = "";
 
     try {
-      // --- 1단계: 한국 공공데이터 API 호출 (개별 주식) ---
+      // 1단계: 국내 공공데이터 API
       const isNum = /^\d+$/.test(cleanInput);
       const queryParam = isNum ? `likeSrtnCd=${cleanInput}` : `itmsNm=${encodeURIComponent(cleanInput)}`;
       const publicUrl = `https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo?serviceKey=${publicDataApiKey}&resultType=json&${queryParam}&numOfRows=1`;
@@ -99,61 +99,106 @@ export default function App() {
       const item = data?.response?.body?.items?.item?.[0];
       
       if (item) {
-        currentStockInfo = {
-          name: item.itmsNm,
-          code: item.srtnCd,
-          market: item.mrktCtg,
-          price: item.clpr,
-          change: item.vs,
-          changeRate: item.fltRt
-        };
+        currentStockInfo.name = item.itmsNm;
+        currentStockInfo.code = item.srtnCd;
+        currentStockInfo.market = item.mrktCtg;
+        currentStockInfo.price = item.clpr;
+        currentStockInfo.change = item.vs;
+        currentStockInfo.changeRate = item.fltRt;
+        symbolForYahoo = item.mrktCtg === 'KOSPI' ? `${item.srtnCd}.KS` : `${item.srtnCd}.KQ`;
       } else {
-        // --- 2단계: 공공데이터 실패 시 야후 Public API (CORS 프록시 우회) ---
-        console.log("공공데이터 없음. Yahoo Public API (Proxy)를 호출합니다...");
-        try {
-          // 1) 야후 검색 API로 심볼(티커) 찾기
-          const searchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v1/finance/search?q=${cleanInput}`)}`;
-          const searchRes = await fetch(searchUrl);
-          const searchData = await searchRes.json();
-          const firstResult = searchData?.quotes?.[0];
+        // 2단계: 야후 파이낸스 검색 API (ETF 및 해외주식)
+        const searchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v1/finance/search?q=${cleanInput}`)}`;
+        const searchRes = await fetch(searchUrl);
+        const searchData = await searchRes.json();
+        const firstResult = searchData?.quotes?.[0];
 
-          if (firstResult && firstResult.symbol) {
-            // 2) 찾은 심볼로 현재가(Chart) 조회
-            const quoteUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${firstResult.symbol}`)}`;
-            const quoteRes = await fetch(quoteUrl);
-            const quoteData = await quoteRes.json();
-            const meta = quoteData?.chart?.result?.[0]?.meta;
+        if (firstResult && firstResult.symbol) {
+          symbolForYahoo = firstResult.symbol;
+          const quoteUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${firstResult.symbol}`)}`;
+          const quoteRes = await fetch(quoteUrl);
+          const quoteData = await quoteRes.json();
+          const meta = quoteData?.chart?.result?.[0]?.meta;
 
-            if (meta) {
-              const previousClose = meta.chartPreviousClose || meta.previousClose;
-              const changeValue = meta.regularMarketPrice - previousClose;
-              const changePercent = (changeValue / previousClose) * 100;
+          if (meta) {
+            const previousClose = meta.chartPreviousClose || meta.previousClose;
+            const changeValue = meta.regularMarketPrice - previousClose;
+            const changePercent = (changeValue / previousClose) * 100;
 
-              currentStockInfo = {
-                name: firstResult.shortname || firstResult.longname || cleanInput,
-                code: firstResult.symbol,
-                market: firstResult.exchDisp || 'Global',
-                price: meta.regularMarketPrice,
-                change: changeValue.toFixed(2),
-                changeRate: changePercent.toFixed(2)
-              };
-            }
+            currentStockInfo.name = firstResult.shortname || firstResult.longname || cleanInput;
+            currentStockInfo.code = firstResult.symbol;
+            currentStockInfo.market = firstResult.exchDisp || 'Global';
+            currentStockInfo.price = meta.regularMarketPrice;
+            currentStockInfo.change = changeValue.toFixed(2);
+            currentStockInfo.changeRate = changePercent.toFixed(2);
           }
-        } catch (yahooErr) {
-          console.error("Yahoo Public API Fetch Error:", yahooErr);
         }
       }
+
+      // 3단계: 야후 파이낸스 심층 데이터(재무제표 및 뉴스) 수집
+      if (symbolForYahoo) {
+        try {
+          // 재무 지표 추출
+          const summaryUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${symbolForYahoo}?modules=financialData,defaultKeyStatistics,summaryDetail`)}`;
+          const summaryRes = await fetch(summaryUrl);
+          const summaryData = await summaryRes.json();
+          const result = summaryData?.quoteSummary?.result?.[0];
+
+          if (result) {
+            const fd = result.financialData || {};
+            const ks = result.defaultKeyStatistics || {};
+            const sd = result.summaryDetail || {};
+
+            currentStockInfo.financials = {
+              'Free Cash Flow': fd.freeCashflow?.fmt || 'N/A',
+              'Current Ratio': fd.currentRatio?.fmt || 'N/A',
+              'Quick Ratio': fd.quickRatio?.fmt || 'N/A',
+              'Debt to Equity': fd.debtToEquity?.fmt || 'N/A',
+              'Return on Equity (ROE)': fd.returnOnEquity?.fmt || 'N/A',
+              'Total Revenue': fd.totalRevenue?.fmt || 'N/A',
+              'Net Income': fd.netIncomeToCommon?.fmt || 'N/A',
+              'P/E Ratio (TTM)': sd.trailingPE?.fmt || 'N/A',
+              'Forward P/E': ks.forwardPE?.fmt || 'N/A',
+              'PEG Ratio': ks.pegRatio?.fmt || 'N/A',
+              'Beta': ks.beta?.fmt || 'N/A',
+              'Current Price': fd.currentPrice?.fmt || 'N/A',
+              'Target Mean Price': fd.targetMeanPrice?.fmt || 'N/A',
+              'Target High Price': fd.targetHighPrice?.fmt || 'N/A',
+              'Target Low Price': fd.targetLowPrice?.fmt || 'N/A',
+              'EPS (TTM)': ks.trailingEps?.fmt || 'N/A',
+              'Forward EPS': ks.forwardEps?.fmt || 'N/A',
+              'Revenue Growth': fd.revenueGrowth?.fmt || 'N/A',
+              'Earnings Growth': fd.earningsGrowth?.fmt || 'N/A',
+              'Book Value': ks.bookValue?.fmt || 'N/A',
+              'Price to Book': ks.priceToBook?.fmt || 'N/A'
+            };
+          }
+
+          // 뉴스 기사 추출
+          const newsSearchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v1/finance/search?q=${symbolForYahoo}`)}`;
+          const newsRes = await fetch(newsSearchUrl);
+          const newsData = await newsRes.json();
+          if (newsData?.news && newsData.news.length > 0) {
+            currentStockInfo.news = newsData.news.slice(0, 10).map(n => {
+              const date = new Date(n.providerPublishTime * 1000);
+              const dateStr = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+              return `- [News] ${n.title} - ${n.publisher || 'Web'} (${dateStr})`;
+            });
+          }
+        } catch (e) {
+          console.error("Detail Fetch Error", e);
+        }
+      }
+
     } catch (error) {
       console.error("Fetch error", error);
     } finally {
       setIsSearching(false);
       setActiveStockData(currentStockInfo);
-      // API 실패하더라도 입력한 이름으로 프롬프트는 무조건 생성
-      generatePromptContent(currentStockInfo || { name: cleanInput, code: cleanInput }, reportType);
+      generatePromptContent(currentStockInfo, reportType);
     }
   };
 
-  // 자동 종목 검색
   useEffect(() => {
     const autoGenerate = setTimeout(() => {
       if (ticker.trim().length >= 2) {
@@ -162,12 +207,12 @@ export default function App() {
     }, 1200); 
 
     return () => clearTimeout(autoGenerate);
-  }, [ticker, useMacro, reportType, analysisItems]);
+  }, [ticker, reportType, analysisItems]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault(); 
-      e.target.blur(); // 모바일 키보드 숨기기
+      e.target.blur();
       handleSearch(true); 
     }
   };
@@ -179,6 +224,17 @@ export default function App() {
     const isKOR = /^\d+$/.test(stockCode) || (stockInfo && stockInfo.market && (stockInfo.market.includes('KOSPI') || stockInfo.market.includes('KOSDAQ')));
     const currencySym = isKOR ? "₩" : "$";
 
+    const priceText = stockInfo && stockInfo.price !== 'N/A' 
+      ? `- 현재가: ${Number(stockInfo.price).toLocaleString()} ${isKOR ? 'KRW' : 'USD'} / 전일대비: ${stockInfo.change > 0 ? '+' : ''}${stockInfo.change} (${stockInfo.changeRate}%)` 
+      : `Chart Data Not Available.\n가격 정보 조회 실패`;
+
+    const fallbackFinancials = "{'Free Cash Flow': 'N/A', 'Current Ratio': 'N/A', 'Quick Ratio': 'N/A', 'Debt to Equity': 'N/A', 'Return on Equity (ROE)': 'N/A', 'Total Revenue': 'N/A', 'Net Income': 'N/A', 'P/E Ratio (TTM)': 'N/A', 'Forward P/E': 'N/A', 'PEG Ratio': 'N/A', 'Beta': 'N/A', 'Current Price': 'N/A', 'Target Mean Price': 'N/A', 'Target High Price': 'N/A', 'Target Low Price': 'N/A', 'EPS (TTM)': 'N/A', 'Forward EPS': 'N/A', 'Revenue Growth': 'N/A', 'Earnings Growth': 'N/A', 'Book Value': 'N/A', 'Price to Book': 'N/A'}";
+    const finString = stockInfo?.financials ? JSON.stringify(stockInfo.financials).replace(/"/g, "'") : fallbackFinancials;
+
+    const newsString = stockInfo?.news && stockInfo.news.length > 0 
+      ? stockInfo.news.join('\n') 
+      : "(이 섹션에서 실시간 뉴스를 수집하십시오. 형식: [Google News] 제목 - 출처 (날짜))";
+
     let fullPrompt = "";
 
     if (type === 'MAIN') {
@@ -186,20 +242,20 @@ export default function App() {
 [역할] 월스트리트 수석 애널리스트
 [대상] ${stockName} (공식 기업명: ${stockName})
 [모드] MAIN
-[중점 분석] ${analysisItems.join(', ')}
+[중점 분석] 현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략
 [투자 관점] ${term}
-[분석 레벨] ${level}
+[분석 레벨] 5.시나리오
 **주의: '${stockName}'는 '${stockName}'입니다. 다른 기업과 혼동하지 마십시오.**
 이 분석은 '시나리오 모드'입니다. 미래 불확실성을 고려하여 확률적 접근이 필수적입니다.
-
+ 
 [데이터 요약]
-${stockInfo && stockInfo.price !== undefined ? `- 현재가: ${Number(stockInfo.price).toLocaleString()} ${isKOR ? 'KRW' : 'USD'} / 전일대비: ${stockInfo.change > 0 ? '+' : ''}${stockInfo.change} (${stockInfo.changeRate}%)` : 'Chart Data Not Available.\n가격 정보 조회 실패'}
-
+${priceText}
+ 
 [재무 지표]
-{'Free Cash Flow': 'N/A', 'Current Ratio': 'N/A', 'Quick Ratio': 'N/A', 'Debt to Equity': 'N/A', 'Return on Equity (ROE)': 'N/A', 'Total Revenue': 'N/A', 'Net Income': 'N/A', 'P/E Ratio (TTM)': 'N/A', 'Forward P/E': 'N/A', 'PEG Ratio': 'N/A', 'Beta': 'N/A', 'Current Price': 'N/A', 'Target Mean Price': 'N/A', 'Target High Price': 'N/A', 'Target Low Price': 'N/A', 'EPS (TTM)': 'N/A', 'Forward EPS': 'N/A', 'Revenue Growth': 'N/A', 'Earnings Growth': 'N/A', 'Book Value': 'N/A', 'Price to Book': 'N/A'}
-
+${finString}
+ 
 [관련 뉴스]
-(이 섹션에서 실시간 뉴스를 수집하십시오. 형식: [Google News] 제목 - 출처 (날짜))
+${newsString}
 
 [분석 지침]
 **다음의 항목들을 순서대로 빠짐없이 분석하십시오.**
@@ -216,7 +272,7 @@ ${stockInfo && stockInfo.price !== undefined ? `- 현재가: ${Number(stockInfo.
 3. **구조화된 출력**: 각 분석 항목은 별도의 섹션 헤더(##)로 구분하십시오.
    - 항목 간 명확한 시각적 구분이 필요합니다.
 
-4. **체크리스트 확인**: 분석 완료 후, 선택된 모든 항목(${analysisItems.join(', ')})이 포함되었는지 **스스로 검증**하십시오.
+4. **체크리스트 확인**: 분석 완료 후, 선택된 모든 항목(현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략)이 포함되었는지 **스스로 검증**하십시오.
    - 누락된 항목이 있다면 반드시 추가 작성하십시오.
 
 ---
@@ -229,7 +285,7 @@ ${stockInfo && stockInfo.price !== undefined ? `- 현재가: ${Number(stockInfo.
      | 티커(심볼) | ${stockCode} |
      | 섹터 (Sector) | N/A |
      | 산업 (Industry) | N/A |
-     | 국가 | ${isKOR ? '대한민국' : 'Global'} |
+     | 국가 | ${stockInfo?.market && stockInfo.market !== 'N/A' ? stockInfo.market : 'Global'} |
      | 시가총액 | N/A |
      | 기업 규모 | N/A |
      | 직원 수 | N/A |
@@ -241,7 +297,7 @@ ${stockInfo && stockInfo.price !== undefined ? `- 현재가: ${Number(stockInfo.
 
 2. **[사용자 선택 중점 분석 항목 상세]**
    ⚠️ **아래 리스트의 모든 항목을 개별 섹션으로 상세 분석하십시오. 절대 생략 금지!**
-   - 선택된 항목 목록: ${analysisItems.join(', ')}
+   - 선택된 항목 목록: 현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략
    - **각 항목별로 ## 헤더를 사용하여 별도 섹션으로 작성**하십시오.
    - 각 항목당 최소 3개 이상의 구체적 분석 포인트를 포함하십시오.
 
@@ -293,39 +349,6 @@ ${stockInfo && stockInfo.price !== undefined ? `- 현재가: ${Number(stockInfo.
    - 각 시나리오별 **예상 주가 밴드**와 **실현 확률(%)**을 명시적으로 제시하십시오.
    - 왜 그러한 확률이 배정되었는지에 대한 **논리적/정량적 근거**를 상세히 설명하십시오.
 
-${useMacro ? `
-**[🌍 거시경제 및 지정학적 분석 - 필수 포함]**
-이 분석은 거시경제 및 지정학적 관점을 반드시 포함해야 합니다. 아래 항목을 심층 분석하십시오:
-
-1. **통화정책 및 금리 영향**
-   - 연준(Fed) 금리 정책이 해당 기업/섹터에 미치는 영향
-   - 금리 인상/인하 시나리오별 주가 영향
-   - 달러 강세/약세에 따른 수출입 영향
-
-2. **지정학적 리스크**
-   - 미중 무역분쟁, 관세 정책이 해당 기업에 미치는 영향
-   - 전쟁, 지역 분쟁(우크라이나, 중동 등)의 공급망 영향
-   - 글로벌 제재, 수출 규제 관련 리스크
-   - 핵심 원자재(반도체, 희토류 등) 공급망 의존도
-
-3. **거시경제 사이클**
-   - 현재 경기 사이클 위치 (확장, 정점, 수축, 저점)
-   - 경기침체(Recession) 가능성과 해당 기업의 방어력
-   - 인플레이션/디플레이션 환경에서의 가격 전가력
-
-4. **글로벌 정책 변화**
-   - ESG/탄소중립 정책이 해당 섹터에 미치는 중장기 영향
-   - AI 규제, 데이터 보호법 등 기술 규제 영향
-   - 정부 보조금, 세제 혜택 변화
-
-5. **환율 및 국제 자금 흐름**
-   - 원/달러 환율 변동이 수익에 미치는 영향
-   - 신흥국 자금 이탈/유입 트렌드
-   - 외국인 투자자 동향과 거시경제 연관성
-
-**출력 시 별도 섹션으로 "🌍 거시경제/지정학 분석" 항목을 반드시 포함하십시오.**
-` : ''}
-
 [출력 형식]
 - 보고서는 가독성 있게 마크다운 형식으로 작성하십시오.
 - **모든 답변은 반드시 '한글'로 작성하십시오.** (전문 용어는 괄호 안에 영문 병기)
@@ -337,22 +360,19 @@ ${useMacro ? `
 
 ⚠️ **[최종 검증 - 작성 완료 전 확인]**
 아래 항목들이 모두 분석에 포함되었는지 확인하십시오:
-- 선택된 중점 분석 항목: ${analysisItems.join(', ')}
+- 선택된 중점 분석 항목: 현금건전성 지표 (FCF, 유동비율, 부채비율), 핵심 재무제표 분석 (손익, 대차대조, 현금흐름), 투자기관 목표주가 및 컨센서스, 호재/악재 뉴스 판단, 기술적 지표 (RSI/이평선), 거래량, 수급 분석, 외국인/기관 수급 분석, 경쟁사 비교 및 업황, P/E Ratio (P/E TTM, Forward P/E), Intrinsic Value, DCF Value, 베타(β), WACC (가중평균자본비용) 분석, 투자성향별 포트폴리오 적정보유비중, 단기/중기 매매 전략
 - 누락된 항목이 있다면 반드시 추가 작성 후 응답을 완료하십시오.
 - 각 항목이 충분한 깊이(최소 3개 포인트)로 분석되었는지 확인하십시오.
 `.trim();
     } else {
-      fullPrompt = `
-[역할] 월가 수석 애널리스트
+      fullPrompt = `[역할] 월가 수석 애널리스트
 [대상] ${stockName} (공식명: ${stockName})
 [자료] 최신 ${type} 보고서 기반 분석
 **주의: '${stockName}' 분석 시 다른 종목과 혼동하지 마십시오.**
 
 [지시사항]
 이 종목의 최신 ${type} 공시 자료를 바탕으로 핵심 이슈, 실적(가이던스), 리스크, 그리고 투자 매력도를 상세히 분석해 주십시오. 
-ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Rebalancing)을 분석하십시오.
-모든 답변은 한글로, 마크다운 형식(## 섹션)을 지켜 상세히 작성하십시오.
-`.trim();
+모든 답변은 한글로, 마크다운 형식(## 섹션)을 지켜 상세히 작성하십시오.`.trim();
     }
 
     setTimeout(() => {
@@ -374,22 +394,16 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#070b14] font-sans text-slate-200 overflow-hidden text-left">
-      
-      {/* 모바일 햄버거 메뉴 */}
       <div className="lg:hidden p-4 flex justify-between items-center border-b border-slate-800 bg-[#111827]">
         <div className="flex items-center space-x-2">
           <Cpu className="text-rose-500 w-6 h-6" />
           <span className="font-black text-white italic">Hyper-Analyst</span>
         </div>
-        <button 
-          onClick={() => setIsSidebarOpen(true)} 
-          className="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800/50"
-        >
+        <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800/50">
           <Menu className="w-6 h-6" />
         </button>
       </div>
 
-      {/* Sidebar */}
       <div className={`fixed inset-0 lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out z-50 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-full lg:w-80 bg-[#111827] border-r border-slate-800 flex flex-col h-full shadow-2xl`}>
         <div className="flex p-6 border-b border-slate-800 items-center justify-between bg-[#111827]">
           <div className="flex items-center space-x-3">
@@ -398,14 +412,10 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
             </div>
             <div className="flex flex-col text-left">
               <h1 className="text-lg font-black text-white italic leading-tight">Hyper-Analyst</h1>
-              <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.17 FREE-API</span>
+              <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.19 DATA-RICH</span>
             </div>
           </div>
-          {/* 모바일 닫기 버튼 */}
-          <button 
-            onClick={() => setIsSidebarOpen(false)} 
-            className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-          >
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -422,44 +432,6 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
                 <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useNews ? 'left-[18px]' : 'left-[2px]'}`}></div>
               </div>
             </div>
-
-            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => setUseMacro(!useMacro)}>
-               <div className="flex items-center space-x-3">
-                <Globe2 className="w-4 h-4 text-rose-500" />
-                <span className="text-xs font-bold text-slate-300">거시경제/지정학 분석</span>
-              </div>
-              <div className={`w-8 h-4 rounded-full relative transition-colors ${useMacro ? 'bg-rose-500' : 'bg-slate-700'}`}>
-                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${useMacro ? 'left-[18px]' : 'left-[2px]'}`}></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-             <h3 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">포트폴리오 공시 분석</h3>
-             <div className="grid grid-cols-2 gap-2">
-                {['10-K', '10-Q', '8-K', 'MAIN'].map(type => (
-                  <button key={type} onClick={() => setReportType(type)} className={`p-2 rounded-lg border text-[11px] font-bold transition-all ${reportType === type ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'}`}>
-                    {type === 'MAIN' ? '종합 분석' : type}
-                  </button>
-                ))}
-             </div>
-          </div>
-
-          <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-800/50">
-            <button onClick={() => setIsFocusMenuOpen(!isFocusMenuOpen)} className="w-full p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
-              <span className="text-xs font-black text-slate-400 uppercase tracking-wider">중점 분석 항목 (STRICT)</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isFocusMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {isFocusMenuOpen && (
-              <div className="p-3 pt-0 space-y-1.5 max-h-[25vh] overflow-y-auto custom-scrollbar bg-slate-900/20 text-left">
-                {availableItems.map((item, idx) => (
-                  <label key={idx} className="flex items-start space-x-3 p-1.5 rounded hover:bg-slate-800/50 cursor-pointer transition-colors">
-                    <input type="checkbox" className="mt-0.5 w-3.5 h-3.5 rounded border-slate-600 text-indigo-500" checked={analysisItems.includes(item)} onChange={() => setAnalysisItems(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item])} />
-                    <span className="text-[11px] text-slate-400 leading-snug">{item}</span>
-                  </label>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="space-y-4 pt-2">
@@ -470,7 +442,7 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
                 value={ticker} 
                 onChange={(e) => setTicker(e.target.value)} 
                 onKeyDown={handleKeyDown}
-                placeholder="기업/ETF 검색 (예: KODEX 반도체, TSLA)" 
+                placeholder="기업/ETF 검색 (예: TSLA)" 
                 className="w-full pl-10 pr-4 py-3.5 bg-[#070b14] border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none text-left transition-all" 
               />
             </div>
@@ -485,7 +457,6 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-[#0a0f1e]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#f43f5e08,transparent_50%)]"></div>
         <div className="relative h-full flex flex-col p-4 lg:p-12 overflow-y-auto custom-scrollbar text-left">
@@ -500,10 +471,10 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
                   <h1 className="text-3xl lg:text-5xl font-black tracking-tighter text-white italic uppercase leading-none">
                     Hyper Analyst <span className="text-indigo-500 underline decoration-rose-500 decoration-8 underline-offset-[12px]">GLOBAL</span>
                   </h1>
-                  <span className="hidden md:inline-block text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.17</span>
+                  <span className="hidden md:inline-block text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.19</span>
                 </div>
                 <p className="text-slate-500 text-xs lg:text-sm mt-5 font-bold uppercase tracking-[0.2em] lg:tracking-[0.3em] flex items-center">
-                  <Database className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" /> KEY-FREE YAHOO API INTEGRATED
+                  <Database className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" /> DATA-RICH RAW PROTOCOL
                 </p>
               </div>
             </div>
@@ -512,8 +483,8 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
               <div className="flex flex-col items-center justify-center py-32 space-y-8 animate-in fade-in duration-500">
                 <Loader2 className="w-16 h-16 text-rose-500 animate-spin relative z-10" />
                 <div className="text-center space-y-2">
-                  <p className="text-white font-black uppercase tracking-widest text-lg">Fetching Global Data...</p>
-                  <p className="text-slate-500 text-sm font-medium italic">야후 파이낸스망을 통해 KODEX/해외 종목을 조회 중입니다.</p>
+                  <p className="text-white font-black uppercase tracking-widest text-lg">Fetching Financial & News Data...</p>
+                  <p className="text-slate-500 text-sm font-medium italic">야후 파이낸스망에서 재무 지표와 뉴스를 긁어오고 있습니다.</p>
                 </div>
               </div>
             ) : generatedPrompt ? (
@@ -522,10 +493,10 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
                   <ShieldAlert className="text-rose-400 w-7 h-7 flex-shrink-0 mt-1" />
                   <div>
                     <h4 className="text-white font-black text-sm uppercase tracking-wider">
-                      Dual API Prompt Ready
+                      Ultra-Strict Analysis Prompt Ready
                     </h4>
                     <p className="text-rose-100/60 text-xs lg:text-sm leading-relaxed mt-2">
-                      <span className="text-white font-bold italic">한국 공공데이터 및 야후 파이낸스망이 통합 적용되었습니다.</span> (API Key 없이 구동)
+                      <span className="text-white font-bold italic">요약 원천 차단.</span> 사용자 지침 원문과 수집된 실시간 데이터가 100% 반영되었습니다.
                     </p>
                   </div>
                 </div>
@@ -562,11 +533,11 @@ ETF의 경우 운용사의 최신 보고서나 포트폴리오 변경 내역(Reb
                    <FileSearch className="text-slate-600 w-16 h-16 lg:w-20 lg:h-20 relative z-10" />
                 </div>
                 <div className="space-y-4 px-4">
-                  <h3 className="text-xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.17 DUAL API ENGINE</h3>
+                  <h3 className="text-xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.19 DATA ENRICHMENT</h3>
                   <p className="text-slate-600 text-xs lg:text-sm max-w-md mx-auto leading-relaxed font-medium">
-                    국내 공공데이터 및 <span className="text-rose-500 font-bold">야후 파이낸스 글로벌망</span>을 교차 탐색하여<br/>
-                    ETF와 해외주식의 실시간 시세를 무제한으로 렌더링합니다.<br/><br/>
-                    <span className="text-indigo-400">메뉴 버튼(≡)을 눌러 종목 검색을 시작하세요.</span>
+                    사용자님의 모든 지침 원문을 <span className="text-rose-500 font-bold">100% 무삭제 복원</span>하며,<br/>
+                    야후 데이터를 통해 재무/뉴스 N/A 오류를 해결합니다.<br/><br/>
+                    <span className="text-indigo-400">메뉴 버튼(≡)을 눌러 테슬라(TSLA) 검색을 시작하세요.</span>
                   </p>
                 </div>
               </div>
