@@ -469,12 +469,13 @@ ${useMacro ? `
 
 [결론]
 반드시 [매수 / 매도 / 관망] 중 하나의 명확한 투자 의견을 제시하십시오.
+매도 / 매수에 대한 시점과 근거를 각각 제시하고, 그 제시한 근거를 충분한 깊이(최소 3개 포인트 이상)로 설명하고, 근거를 출력하십시오.
 
 ⚠️ **[최종 검증 - 작성 완료 전 확인]**
 아래 항목들이 모두 분석에 포함되었는지 확인하십시오:
 - 선택된 중점 분석 항목: ${analysisItems.join(', ')}
 - 누락된 항목이 있다면 반드시 추가 작성 후 응답을 완료하십시오.
-- 각 항목이 충분한 깊이(최소 3개 포인트)로 분석되었는지 확인하십시오.
+- 전 세계 경제 발표(실업률 / 물가상승률 등)을 포함하여 각 항목이 충분한 깊이(최소 3개 포인트)로 분석되었는지 확인하십시오.
 `.trim();
     } else {
       fullPrompt = `[역할] 월가 수석 애널리스트
@@ -534,7 +535,7 @@ ${useMacro ? `
         
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-left">
           
-          {/* 복구 완료: 1. 분석 옵션 (기간/레벨 슬라이더 + 뉴스, 거시경제) */}
+          {/* 1. 분석 옵션 (기간/레벨 슬라이더 + 뉴스, 거시경제) */}
           <div className="space-y-4">
             <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-widest">분석 옵션</h3>
             
@@ -581,7 +582,7 @@ ${useMacro ? `
             </div>
           </div>
 
-          {/* 복구 완료: 2. 포트폴리오 공시 분석 버튼 */}
+          {/* 2. 포트폴리오 공시 분석 버튼 */}
           <div className="space-y-3">
              <h3 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">포트폴리오 공시 분석</h3>
              <div className="grid grid-cols-2 gap-2">
@@ -593,7 +594,7 @@ ${useMacro ? `
              </div>
           </div>
 
-          {/* 복구 완료: 3. 중점 분석 항목(STRICT) 체크박스 리스트 */}
+          {/* 3. 중점 분석 항목(STRICT) 체크박스 리스트 */}
           <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-800/50">
             <button onClick={() => setIsFocusMenuOpen(!isFocusMenuOpen)} className="w-full p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
               <span className="text-xs font-black text-slate-400 uppercase tracking-wider">중점 분석 항목 (STRICT)</span>
