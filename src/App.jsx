@@ -469,13 +469,18 @@ ${useMacro ? `
 
 [결론]
 반드시 [매수 / 매도 / 관망] 중 하나의 명확한 투자 의견을 제시하십시오.
-매도 / 매수에 대한 시점과 근거를 각각 제시하고, 그 제시한 근거를 충분한 깊이(최소 3개 포인트 이상)로 설명하고, 근거를 출력하십시오.
+
+**[매도/매수 시점 및 근거 상세]**
+- 매수 시점(Entry Point)과 매도 시점(Exit Point)을 구체적인 가격대와 함께 명확히 제시하십시오.
+- 각 시점에 대한 근거를 **최소 3개 이상의 핵심 포인트**로 심층 분석하여 기술하십시오.
+- 해당 근거가 앞선 기술적/재무적/거시경제적 분석 결과와 어떻게 논리적으로 연결되는지 상세히 설명하십시오.
 
 ⚠️ **[최종 검증 - 작성 완료 전 확인]**
 아래 항목들이 모두 분석에 포함되었는지 확인하십시오:
 - 선택된 중점 분석 항목: ${analysisItems.join(', ')}
-- 누락된 항목이 있다면 반드시 추가 작성 후 응답을 완료하십시오.
+- **매수/매도 시점(Entry/Exit)과 그에 따른 3가지 이상의 논리적 근거가 포함되었는지 확인하십시오.**
 - 전 세계 경제 발표(실업률 / 물가상승률 등)을 포함하여 각 항목이 충분한 깊이(최소 3개 포인트)로 분석되었는지 확인하십시오.
+- 누락된 항목이 있다면 반드시 추가 작성 후 응답을 완료하십시오.
 `.trim();
     } else {
       fullPrompt = `[역할] 월가 수석 애널리스트
@@ -485,6 +490,7 @@ ${useMacro ? `
 
 [지시사항]
 이 종목의 최신 ${type} 공시 자료를 바탕으로 핵심 이슈, 실적(가이던스), 리스크, 그리고 투자 매력도를 상세히 분석해 주십시오. 
+결론에는 반드시 [매수 / 매도 / 관망] 의견과 함께 **구체적인 매수/매도 시점 및 3가지 이상의 상세 근거**를 포함하십시오.
 모든 답변은 한글로, 마크다운 형식(## 섹션)을 지켜 상세히 작성하십시오.`.trim();
     }
 
@@ -525,7 +531,7 @@ ${useMacro ? `
             </div>
             <div className="flex flex-col text-left">
               <h1 className="text-lg font-black text-white italic leading-tight">Hyper-Analyst</h1>
-              <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.18 DATA ENRICHMENT</span>
+              <span className="text-[10px] text-rose-500 font-mono tracking-widest uppercase font-bold">V1.181 DATA ENRICHMENT</span>
             </div>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
@@ -649,7 +655,7 @@ ${useMacro ? `
                   <h1 className="text-3xl lg:text-5xl font-black tracking-tighter text-white italic uppercase leading-none">
                     Hyper Analyst <span className="text-indigo-500 underline decoration-rose-500 decoration-8 underline-offset-[12px]">GLOBAL</span>
                   </h1>
-                  <span className="hidden md:inline-block text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.18</span>
+                  <span className="hidden md:inline-block text-xs font-black text-rose-500 ml-6 font-mono bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">V1.181</span>
                 </div>
                 <p className="text-slate-500 text-xs lg:text-sm mt-5 font-bold uppercase tracking-[0.2em] lg:tracking-[0.3em] flex items-center">
                   <Database className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" /> DATA-RICH RAW PROTOCOL
@@ -711,7 +717,7 @@ ${useMacro ? `
                    <FileSearch className="text-slate-600 w-16 h-16 lg:w-20 lg:h-20 relative z-10" />
                 </div>
                 <div className="space-y-4 px-4">
-                  <h3 className="text-xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.18 DATA ENRICHMENT</h3>
+                  <h3 className="text-xl lg:text-3xl font-black text-slate-500 uppercase tracking-tighter italic">V1.181 DATA ENRICHMENT</h3>
                   <p className="text-slate-600 text-xs lg:text-sm max-w-md mx-auto leading-relaxed font-medium">
                     사용자님의 모든 지침 원문을 <span className="text-rose-500 font-bold">100% 무삭제 복원</span>하며,<br/>
                     야후 데이터를 통해 재무/뉴스 N/A 오류를 해결합니다.<br/><br/>
